@@ -5,7 +5,7 @@ dotnet publish CSVGenerator\CSVGenerator.csproj -r win-x64 -f net48 -c Release -
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFrameworks>net48;net6.0-windows;net9.0-windows</TargetFrameworks>
+    <TargetFrameworks>net48;net6.0-windows;net8.0-windows;net9.0-windows</TargetFrameworks>
     <UseWPF>true</UseWPF>
     <ApplicationIcon>..\app.ico</ApplicationIcon>
     <Version>1.0.0.0</Version>
