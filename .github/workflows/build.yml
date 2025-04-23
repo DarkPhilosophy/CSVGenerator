@@ -48,7 +48,8 @@ jobs:
     
     - name: Create packages.config
       run: |
-        Set-Content -Path packages.config -Value "<?xml version=\"1.0\" encoding=\"utf-8\"?><packages><package id=\"Newtonsoft.Json\" version=\"13.0.3\" targetFramework=\"net48\" /></packages>"
+        $content = "<?xml version=\"1.0\" encoding=\"utf-8\"?><packages><package id=\"Newtonsoft.Json\" version=\"13.0.3\" targetFramework=\"net48\" /></packages>"
+        Set-Content -Path packages.config -Value $content
       shell: pwsh
     
     - name: Install Newtonsoft.Json package
@@ -61,7 +62,8 @@ jobs:
         cd Common
         
         # Create packages.config for Common
-        Set-Content -Path packages.config -Value "<?xml version=\"1.0\" encoding=\"utf-8\"?><packages><package id=\"Newtonsoft.Json\" version=\"13.0.3\" targetFramework=\"net48\" /></packages>"
+        $content = "<?xml version=\"1.0\" encoding=\"utf-8\"?><packages><package id=\"Newtonsoft.Json\" version=\"13.0.3\" targetFramework=\"net48\" /></packages>"
+        Set-Content -Path packages.config -Value $content
         
         # Install Newtonsoft.Json for Common
         nuget install Newtonsoft.Json -Version 13.0.3
