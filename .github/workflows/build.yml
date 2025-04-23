@@ -78,6 +78,25 @@ jobs:
       shell: pwsh
       continue-on-error: true
     
+    - name: Restore dependencies with NuGet
+      run: |
+        # Create a nuget.config file to specify package sources
+        $nugetConfig = @"
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources>
+    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" protocolVersion="3" />
+    <add key="local" value="$PWD" />
+  </packageSources>
+</configuration>
+"@
+        Set-Content -Path nuget.config -Value $nugetConfig
+        
+        # Restore packages
+        nuget restore CSVGenerator.sln -ConfigFile nuget.config
+      shell: pwsh
+      continue-on-error: true
+    
     - name: Update project references
       run: |
         # Check if the project file exists
@@ -105,19 +124,13 @@ jobs:
       shell: pwsh
       continue-on-error: true
     
-    - name: Restore dependencies with NuGet
-      run: |
-        nuget restore CSVGenerator.sln
-      shell: pwsh
-      continue-on-error: true
-    
     - name: Build with MSBuild (.NET Framework 4.8)
       id: build_net48
       run: |
         # Check if the solution file exists in the root directory
         if (Test-Path CSVGenerator.sln) {
           echo "Building solution from root directory: CSVGenerator.sln"
-          msbuild CSVGenerator.sln /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net48 /p:DefineConstants="NETFRAMEWORK"
+          msbuild CSVGenerator.sln /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net48 /p:DefineConstants="NETFRAMEWORK" /p:RestorePackagesConfig=true
           echo "build_exit_code=$LASTEXITCODE" >> $env:GITHUB_OUTPUT
         } else {
           # Try to find the solution file in the repository
@@ -130,7 +143,7 @@ jobs:
             
             $solutionFile = $solutionFiles[0]
             echo "Building solution: $($solutionFile.FullName)"
-            msbuild $($solutionFile.FullName) /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net48 /p:DefineConstants="NETFRAMEWORK"
+            msbuild $($solutionFile.FullName) /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net48 /p:DefineConstants="NETFRAMEWORK" /p:RestorePackagesConfig=true
             echo "build_exit_code=$LASTEXITCODE" >> $env:GITHUB_OUTPUT
           } else {
             echo "::error::No solution file found!"
