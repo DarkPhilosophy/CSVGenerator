@@ -85,14 +85,7 @@ jobs:
           
           # Add reference to Newtonsoft.Json
           if (-not ($content -match "Newtonsoft.Json")) {
-            $content = $content -replace "</Project>", @"
-  <ItemGroup>
-    <Reference Include="Newtonsoft.Json">
-      <HintPath>Newtonsoft.Json.13.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
-    </Reference>
-  </ItemGroup>
-</Project>
-"@
+            $content = $content -replace "</Project>", "  <ItemGroup>    <Reference Include=\"Newtonsoft.Json\">      <HintPath>Newtonsoft.Json.13.0.3\\lib\\net45\\Newtonsoft.Json.dll</HintPath>    </Reference>  </ItemGroup></Project>"
           }
           
           # Update the project reference to point to the Common project in the subdirectory
