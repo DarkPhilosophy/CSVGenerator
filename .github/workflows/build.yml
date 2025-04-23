@@ -10,111 +10,103 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-
+      
     - name: Checkout Common library
       uses: actions/checkout@v4
       with:
         repository: DarkPhilosophy/Common
         path: Common
         token: ${{ secrets.GITHUB_TOKEN }}
-
+    
     - name: Setup MSBuild
       uses: microsoft/setup-msbuild@v1.1
-
+    
     - name: Setup NuGet
       uses: NuGet/setup-nuget@v1
-
+    
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: |
           6.0.x
           8.0.x
-
+    
     - name: Install .NET Framework Developer Pack
       run: |
         choco install netfx-4.8-devpack -y
       shell: pwsh
-
+    
     - name: List directory structure
       run: |
         dir
         dir -Recurse -Depth 2
       shell: pwsh
-
+    
     - name: Create packages.config
       run: |
         $content = "<?xml version=""1.0"" encoding=""utf-8""?><packages><package id=""Newtonsoft.Json"" version=""13.0.3"" targetFramework=""net48"" /></packages>"
         Set-Content -Path packages.config -Value $content
       shell: pwsh
-
+    
     - name: Install Newtonsoft.Json package
       run: |
         nuget install Newtonsoft.Json -Version 13.0.3
       shell: pwsh
-
+    
     - name: Build Common library first
       run: |
         cd Common
-
+        
         # Create packages.config for Common
         $content = "<?xml version=""1.0"" encoding=""utf-8""?><packages><package id=""Newtonsoft.Json"" version=""13.0.3"" targetFramework=""net48"" /></packages>"
         Set-Content -Path packages.config -Value $content
-
+        
         # Install Newtonsoft.Json for Common
         nuget install Newtonsoft.Json -Version 13.0.3
-
+        
         # Build Common
         dotnet build Common.csproj --configuration Release
-
+        
         # Copy the built DLLs to a location where the main project can find them
         mkdir -p ../lib
         Copy-Item -Path bin/Release/*/Common.dll -Destination ../lib/ -Force
         cd ..
       shell: pwsh
       continue-on-error: true
-
+    
     - name: Restore dependencies with NuGet
       run: |
         # Create a nuget.config file to specify package sources
-        $nugetConfig = @'
-<?xml version="1.0" encoding="utf-8"?>
-<configuration>
-  <packageSources>
-    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" protocolVersion="3" />
-    <add key="local" value="$PWD" />
-  </packageSources>
-</configuration>
-'@
-        Set-Content -Path nuget.config -Value $nugetConfig
-
+        $content = "<?xml version=""1.0"" encoding=""utf-8""?><configuration><packageSources><add key=""nuget.org"" value=""https://api.nuget.org/v3/index.json"" protocolVersion=""3"" /><add key=""local"" value=""$PWD"" /></packageSources></configuration>"
+        Set-Content -Path nuget.config -Value $content
+        
         # Restore packages
         nuget restore CSVGenerator.sln -ConfigFile nuget.config
       shell: pwsh
       continue-on-error: true
-
+    
     - name: Update project references
       run: |
         # Check if the project file exists
         if (Test-Path CSVGenerator.csproj) {
           # Read the project file content
           $content = Get-Content -Path CSVGenerator.csproj -Raw
-
+          
           # Add reference to Newtonsoft.Json
           if (-not ($content -match "Newtonsoft.Json")) {
             $content = $content -replace "</Project>", "  <ItemGroup>    <Reference Include=""Newtonsoft.Json"">      <HintPath>Newtonsoft.Json.13.0.3\\lib\\net45\\Newtonsoft.Json.dll</HintPath>    </Reference>  </ItemGroup></Project>"
           }
-
+          
           # Update the project reference to point to the Common project in the subdirectory
           $content = $content -replace '<ProjectReference Include="..\\Common\\Common.csproj" />', '<Reference Include="Common"><HintPath>lib\\Common.dll</HintPath></Reference>'
-
+          
           # Write the updated content back to the file
           Set-Content -Path CSVGenerator.csproj -Value $content
-
+          
           # Show the updated file
           Get-Content -Path CSVGenerator.csproj | Select-String -Pattern "Reference"
         } else {
@@ -123,7 +115,7 @@ jobs:
         }
       shell: pwsh
       continue-on-error: true
-
+    
     - name: Build with MSBuild (.NET Framework 4.8)
       id: build_net48
       run: |
@@ -140,7 +132,7 @@ jobs:
             foreach ($file in $solutionFiles) {
               echo "  $($file.FullName)"
             }
-
+            
             $solutionFile = $solutionFiles[0]
             echo "Building solution: $($solutionFile.FullName)"
             msbuild $($solutionFile.FullName) /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net48 /p:DefineConstants="NETFRAMEWORK" /p:RestorePackagesConfig=true
@@ -152,24 +144,24 @@ jobs:
         }
       shell: pwsh
       continue-on-error: true
-
+    
     - name: Check build status
       if: steps.build_net48.outputs.build_exit_code != '0'
       run: |
         echo "::error::Build failed with exit code ${{ steps.build_net48.outputs.build_exit_code }}"
         exit 1
       shell: pwsh
-
+    
     - name: Find all build outputs
       run: |
         echo "All build outputs:"
         Get-ChildItem -Path . -Include *.exe,*.dll -Recurse | Select-Object FullName
       shell: pwsh
-
+    
     - name: Create output directories and copy files
       run: |
         mkdir -p output
-
+        
         # Find all EXE files and copy them to output
         $exeFiles = Get-ChildItem -Path . -Include *.exe -Recurse | Where-Object { $_.FullName -notlike "*\\Common\\*" -and $_.FullName -notlike "*\\packages\\*" -and $_.FullName -notlike "*\\obj\\*" }
         if ($exeFiles.Count -gt 0) {
@@ -181,7 +173,7 @@ jobs:
         } else {
           echo "::warning::No EXE files found to copy!"
         }
-
+        
         # Find all DLL files and copy them to output
         $dllFiles = Get-ChildItem -Path . -Include *.dll -Recurse | Where-Object { $_.FullName -notlike "*\\Common\\*" -and $_.FullName -notlike "*\\packages\\*" -and $_.FullName -notlike "*\\obj\\*" }
         if ($dllFiles.Count -gt 0) {
@@ -193,7 +185,7 @@ jobs:
         } else {
           echo "::warning::No DLL files found to copy!"
         }
-
+        
         # Also copy Newtonsoft.Json.dll
         $newtonsoftDll = Get-ChildItem -Path . -Include Newtonsoft.Json.dll -Recurse | Select-Object -First 1
         if ($newtonsoftDll) {
@@ -201,7 +193,7 @@ jobs:
           Copy-Item -Path $newtonsoftDll.FullName -Destination $destPath -Force
           echo "Copied Newtonsoft.Json.dll: $($newtonsoftDll.FullName) to $destPath"
         }
-
+        
         # Also copy Common.dll
         $commonDll = Get-ChildItem -Path . -Include Common.dll -Recurse | Select-Object -First 1
         if ($commonDll) {
@@ -210,7 +202,7 @@ jobs:
           echo "Copied Common.dll: $($commonDll.FullName) to $destPath"
         }
       shell: pwsh
-
+    
     - name: List output directory
       run: |
         echo "Output directory contents:"
@@ -220,7 +212,7 @@ jobs:
           echo "Output directory not found!"
         }
       shell: pwsh
-
+    
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
