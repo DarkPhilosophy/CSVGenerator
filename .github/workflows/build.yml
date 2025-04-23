@@ -20,6 +20,7 @@ jobs:
       with:
         repository: DarkPhilosophy/Common
         path: Common
+        token: ${{ secrets.GITHUB_TOKEN }}
     
     - name: Setup MSBuild
       uses: microsoft/setup-msbuild@v1.1
@@ -48,6 +49,27 @@ jobs:
         dotnet restore Common.csproj
         dotnet build Common.csproj --configuration Release
         cd ..
+      shell: pwsh
+      continue-on-error: true
+    
+    - name: Update project reference
+      run: |
+        # Check if the project file exists
+        if (Test-Path CSVGenerator.csproj) {
+          # Read the project file content
+          $content = Get-Content -Path CSVGenerator.csproj -Raw
+          
+          # Update the project reference to point to the Common project in the subdirectory
+          $content = $content -replace '<ProjectReference Include="..\\Common\\Common.csproj" />', '<ProjectReference Include="Common\\Common.csproj" />'
+          
+          # Write the updated content back to the file
+          Set-Content -Path CSVGenerator.csproj -Value $content
+          
+          # Show the updated file
+          Get-Content -Path CSVGenerator.csproj | Select-String -Pattern "ProjectReference"
+        } else {
+          echo "CSVGenerator.csproj not found!"
+        }
       shell: pwsh
       continue-on-error: true
     
