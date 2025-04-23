@@ -1,0 +1,53 @@
+name: Build CSVGenerator
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: |
+          4.8.x
+          6.0.x
+          9.0.x
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Build .NET Framework 4.8
+      run: dotnet publish --configuration Release --framework net48 --runtime win-x64 --output Release/CSVGenerator-net48-fd
+    
+    - name: Build .NET 6.0
+      run: dotnet publish --configuration Release --framework net6.0-windows --runtime win-x64 --output Release/CSVGenerator-net6-fd
+    
+    - name: Build .NET 9.0
+      run: dotnet publish --configuration Release --framework net9.0-windows --runtime win-x64 --output Release/CSVGenerator-net9-fd
+    
+    - name: Upload .NET Framework 4.8 build
+      uses: actions/upload-artifact@v3
+      with:
+        name: CSVGenerator-net48-fd
+        path: Release/CSVGenerator-net48-fd/
+    
+    - name: Upload .NET 6.0 build
+      uses: actions/upload-artifact@v3
+      with:
+        name: CSVGenerator-net6-fd
+        path: Release/CSVGenerator-net6-fd/
+    
+    - name: Upload .NET 9.0 build
+      uses: actions/upload-artifact@v3
+      with:
+        name: CSVGenerator-net9-fd
+        path: Release/CSVGenerator-net9-fd/
