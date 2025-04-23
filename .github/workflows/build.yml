@@ -66,16 +66,40 @@ jobs:
         }
       shell: pwsh
     
+    - name: Build Common library first
+      run: |
+        cd Common
+        dotnet add package Newtonsoft.Json --version 13.0.3
+        dotnet build Common.csproj --configuration Release
+        cd ..
+      shell: pwsh
+      continue-on-error: true
+    
+    - name: Install Newtonsoft.Json package
+      run: |
+        dotnet add package Newtonsoft.Json --version 13.0.3
+      shell: pwsh
+    
     - name: Restore NuGet packages
       run: |
         nuget restore CSVGenerator.sln
       shell: pwsh
+      continue-on-error: true
     
     - name: Build with MSBuild (All Frameworks)
+      id: build
       run: |
         msbuild CSVGenerator.sln /p:Configuration=Release /p:Platform="Any CPU" /verbosity:detailed
+        echo "build_exit_code=$LASTEXITCODE" >> $env:GITHUB_OUTPUT
       shell: pwsh
       continue-on-error: true
+    
+    - name: Check build status
+      if: steps.build.outputs.build_exit_code != '0'
+      run: |
+        echo "::error::Build failed with exit code ${{ steps.build.outputs.build_exit_code }}"
+        exit 1
+      shell: pwsh
     
     - name: Find all build outputs
       run: |
@@ -96,7 +120,8 @@ jobs:
             echo "Copied EXE: $($file.FullName) to $destPath"
           }
         } else {
-          echo "No EXE files found to copy!"
+          echo "::error::No EXE files found to copy! Build likely failed to produce executables."
+          exit 1
         }
         
         # Find all DLL files and copy them to output
@@ -119,6 +144,7 @@ jobs:
           Get-ChildItem -Path output -Recurse
         } else {
           echo "Output directory not found!"
+          exit 1
         }
       shell: pwsh
     
@@ -127,4 +153,4 @@ jobs:
       with:
         name: CSVGenerator-build-outputs
         path: output/
-        if-no-files-found: warn
+        if-no-files-found: error
