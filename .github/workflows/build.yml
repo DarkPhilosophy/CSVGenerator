@@ -43,11 +43,21 @@ jobs:
         dir -Recurse -Depth 2
       shell: pwsh
     
+    - name: Install Newtonsoft.Json package
+      run: |
+        dotnet add package Newtonsoft.Json --version 13.0.3
+      shell: pwsh
+      continue-on-error: true
+    
     - name: Build Common library first
       run: |
         cd Common
         dotnet restore Common.csproj
         dotnet build Common.csproj --configuration Release
+        
+        # Copy the built DLLs to a location where the main project can find them
+        mkdir -p ../lib
+        Copy-Item -Path bin/Release/*/Common.dll -Destination ../lib/ -Force
         cd ..
       shell: pwsh
       continue-on-error: true
@@ -60,13 +70,13 @@ jobs:
           $content = Get-Content -Path CSVGenerator.csproj -Raw
           
           # Update the project reference to point to the Common project in the subdirectory
-          $content = $content -replace '<ProjectReference Include="..\\Common\\Common.csproj" />', '<ProjectReference Include="Common\\Common.csproj" />'
+          $content = $content -replace '<ProjectReference Include="..\\Common\\Common.csproj" />', '<Reference Include="Common"><HintPath>lib\\Common.dll</HintPath></Reference>'
           
           # Write the updated content back to the file
           Set-Content -Path CSVGenerator.csproj -Value $content
           
           # Show the updated file
-          Get-Content -Path CSVGenerator.csproj | Select-String -Pattern "ProjectReference"
+          Get-Content -Path CSVGenerator.csproj | Select-String -Pattern "Reference"
         } else {
           echo "CSVGenerator.csproj not found!"
         }
@@ -111,7 +121,7 @@ jobs:
         mkdir -p output
         
         # Find and copy any EXE and DLL files
-        $files = Get-ChildItem -Path . -Include *.exe,*.dll -Recurse
+        $files = Get-ChildItem -Path . -Include *.exe,*.dll -Recurse | Where-Object { $_.FullName -notlike "*\\Common\\*" -and $_.FullName -notlike "*\\lib\\*" }
         if ($files.Count -gt 0) {
           foreach ($file in $files) {
             $destPath = Join-Path "output" $file.Name
