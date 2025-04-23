@@ -12,10 +12,10 @@ jobs:
     runs-on: windows-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Setup .NET
-      uses: actions/setup-dotnet@v3
+      uses: actions/setup-dotnet@v4
       with:
         dotnet-version: |
           4.8.x
@@ -35,19 +35,19 @@ jobs:
       run: dotnet publish --configuration Release --framework net9.0-windows --runtime win-x64 --output Release/CSVGenerator-net9-fd
     
     - name: Upload .NET Framework 4.8 build
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: CSVGenerator-net48-fd
         path: Release/CSVGenerator-net48-fd/
     
     - name: Upload .NET 6.0 build
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: CSVGenerator-net6-fd
         path: Release/CSVGenerator-net6-fd/
     
     - name: Upload .NET 9.0 build
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: CSVGenerator-net9-fd
         path: Release/CSVGenerator-net9-fd/
