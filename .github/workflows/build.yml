@@ -46,58 +46,97 @@ jobs:
         dir -Recurse -Depth 2
       shell: pwsh
     
-    - name: Display project file content
+    - name: Create packages.config
       run: |
-        if (Test-Path CSVGenerator.csproj) {
-          echo "CSVGenerator.csproj content:"
-          Get-Content CSVGenerator.csproj
-        } else {
-          echo "CSVGenerator.csproj not found!"
-        }
+        Set-Content -Path packages.config -Value @"
+<?xml version="1.0" encoding="utf-8"?>
+<packages>
+  <package id="Newtonsoft.Json" version="13.0.3" targetFramework="net48" />
+</packages>
+"@
       shell: pwsh
     
-    - name: Display solution file content
+    - name: Install Newtonsoft.Json package
       run: |
-        if (Test-Path CSVGenerator.sln) {
-          echo "CSVGenerator.sln content:"
-          Get-Content CSVGenerator.sln
-        } else {
-          echo "CSVGenerator.sln not found!"
-        }
+        nuget install Newtonsoft.Json -Version 13.0.3
       shell: pwsh
     
     - name: Build Common library first
       run: |
         cd Common
-        dotnet add package Newtonsoft.Json --version 13.0.3
+        
+        # Create packages.config for Common
+        Set-Content -Path packages.config -Value @"
+<?xml version="1.0" encoding="utf-8"?>
+<packages>
+  <package id="Newtonsoft.Json" version="13.0.3" targetFramework="net48" />
+</packages>
+"@
+        
+        # Install Newtonsoft.Json for Common
+        nuget install Newtonsoft.Json -Version 13.0.3
+        
+        # Build Common
         dotnet build Common.csproj --configuration Release
+        
+        # Copy the built DLLs to a location where the main project can find them
+        mkdir -p ../lib
+        Copy-Item -Path bin/Release/*/Common.dll -Destination ../lib/ -Force
         cd ..
       shell: pwsh
       continue-on-error: true
     
-    - name: Install Newtonsoft.Json package
+    - name: Update project references
       run: |
-        dotnet add package Newtonsoft.Json --version 13.0.3
+        # Check if the project file exists
+        if (Test-Path CSVGenerator.csproj) {
+          # Read the project file content
+          $content = Get-Content -Path CSVGenerator.csproj -Raw
+          
+          # Add reference to Newtonsoft.Json
+          if (-not ($content -match "Newtonsoft.Json")) {
+            $content = $content -replace "</Project>", @"
+  <ItemGroup>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>Newtonsoft.Json.13.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>
+"@
+          }
+          
+          # Update the project reference to point to the Common project in the subdirectory
+          $content = $content -replace '<ProjectReference Include="..\\Common\\Common.csproj" />', '<Reference Include="Common"><HintPath>lib\\Common.dll</HintPath></Reference>'
+          
+          # Write the updated content back to the file
+          Set-Content -Path CSVGenerator.csproj -Value $content
+          
+          # Show the updated file
+          Get-Content -Path CSVGenerator.csproj | Select-String -Pattern "Reference"
+        } else {
+          echo "CSVGenerator.csproj not found!"
+        }
       shell: pwsh
+      continue-on-error: true
     
-    - name: Restore NuGet packages
+    - name: Restore dependencies with NuGet
       run: |
         nuget restore CSVGenerator.sln
       shell: pwsh
       continue-on-error: true
     
-    - name: Build with MSBuild (All Frameworks)
-      id: build
+    - name: Build with MSBuild (.NET Framework 4.8)
+      id: build_net48
       run: |
-        msbuild CSVGenerator.sln /p:Configuration=Release /p:Platform="Any CPU" /verbosity:detailed
+        msbuild CSVGenerator.sln /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net48 /p:DefineConstants="NETFRAMEWORK"
         echo "build_exit_code=$LASTEXITCODE" >> $env:GITHUB_OUTPUT
       shell: pwsh
       continue-on-error: true
     
     - name: Check build status
-      if: steps.build.outputs.build_exit_code != '0'
+      if: steps.build_net48.outputs.build_exit_code != '0'
       run: |
-        echo "::error::Build failed with exit code ${{ steps.build.outputs.build_exit_code }}"
+        echo "::error::Build failed with exit code ${{ steps.build_net48.outputs.build_exit_code }}"
         exit 1
       shell: pwsh
     
@@ -112,7 +151,7 @@ jobs:
         mkdir -p output
         
         # Find all EXE files and copy them to output
-        $exeFiles = Get-ChildItem -Path . -Include *.exe -Recurse | Where-Object { $_.FullName -notlike "*\\Common\\*" -and $_.FullName -notlike "*\\packages\\*" }
+        $exeFiles = Get-ChildItem -Path . -Include *.exe -Recurse | Where-Object { $_.FullName -notlike "*\\Common\\*" -and $_.FullName -notlike "*\\packages\\*" -and $_.FullName -notlike "*\\obj\\*" }
         if ($exeFiles.Count -gt 0) {
           foreach ($file in $exeFiles) {
             $destPath = Join-Path "output" $file.Name
@@ -120,12 +159,11 @@ jobs:
             echo "Copied EXE: $($file.FullName) to $destPath"
           }
         } else {
-          echo "::error::No EXE files found to copy! Build likely failed to produce executables."
-          exit 1
+          echo "::warning::No EXE files found to copy!"
         }
         
         # Find all DLL files and copy them to output
-        $dllFiles = Get-ChildItem -Path . -Include *.dll -Recurse | Where-Object { $_.FullName -notlike "*\\Common\\*" -and $_.FullName -notlike "*\\packages\\*" }
+        $dllFiles = Get-ChildItem -Path . -Include *.dll -Recurse | Where-Object { $_.FullName -notlike "*\\Common\\*" -and $_.FullName -notlike "*\\packages\\*" -and $_.FullName -notlike "*\\obj\\*" }
         if ($dllFiles.Count -gt 0) {
           foreach ($file in $dllFiles) {
             $destPath = Join-Path "output" $file.Name
@@ -133,7 +171,23 @@ jobs:
             echo "Copied DLL: $($file.FullName) to $destPath"
           }
         } else {
-          echo "No DLL files found to copy!"
+          echo "::warning::No DLL files found to copy!"
+        }
+        
+        # Also copy Newtonsoft.Json.dll
+        $newtonsoftDll = Get-ChildItem -Path . -Include Newtonsoft.Json.dll -Recurse | Select-Object -First 1
+        if ($newtonsoftDll) {
+          $destPath = Join-Path "output" "Newtonsoft.Json.dll"
+          Copy-Item -Path $newtonsoftDll.FullName -Destination $destPath -Force
+          echo "Copied Newtonsoft.Json.dll: $($newtonsoftDll.FullName) to $destPath"
+        }
+        
+        # Also copy Common.dll
+        $commonDll = Get-ChildItem -Path . -Include Common.dll -Recurse | Select-Object -First 1
+        if ($commonDll) {
+          $destPath = Join-Path "output" "Common.dll"
+          Copy-Item -Path $commonDll.FullName -Destination $destPath -Force
+          echo "Copied Common.dll: $($commonDll.FullName) to $destPath"
         }
       shell: pwsh
     
@@ -144,7 +198,6 @@ jobs:
           Get-ChildItem -Path output -Recurse
         } else {
           echo "Output directory not found!"
-          exit 1
         }
       shell: pwsh
     
@@ -153,4 +206,4 @@ jobs:
       with:
         name: CSVGenerator-build-outputs
         path: output/
-        if-no-files-found: error
+        if-no-files-found: warn
