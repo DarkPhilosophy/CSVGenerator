@@ -129,3 +129,4 @@ dotnet publish CSVGenerator\CSVGenerator.csproj -r win-x64 -f net48 -c Release -
 
 
 </Project>
+
