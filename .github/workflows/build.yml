@@ -100,6 +100,7 @@ jobs:
           Get-Content -Path CSVGenerator.csproj | Select-String -Pattern "Reference"
         } else {
           echo "CSVGenerator.csproj not found!"
+          dir
         }
       shell: pwsh
       continue-on-error: true
@@ -113,8 +114,17 @@ jobs:
     - name: Build with MSBuild (.NET Framework 4.8)
       id: build_net48
       run: |
-        msbuild CSVGenerator.sln /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net48 /p:DefineConstants="NETFRAMEWORK"
-        echo "build_exit_code=$LASTEXITCODE" >> $env:GITHUB_OUTPUT
+        # Find the solution file
+        $solutionFile = Get-ChildItem -Path . -Filter *.sln | Select-Object -First 1
+        
+        if ($solutionFile) {
+          echo "Building solution: $($solutionFile.FullName)"
+          msbuild $($solutionFile.FullName) /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net48 /p:DefineConstants="NETFRAMEWORK"
+          echo "build_exit_code=$LASTEXITCODE" >> $env:GITHUB_OUTPUT
+        } else {
+          echo "::error::No solution file found!"
+          exit 1
+        }
       shell: pwsh
       continue-on-error: true
     
