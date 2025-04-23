@@ -1,0 +1,66 @@
+{
+  "images": [
+    {
+      "file": "promo.png",
+      "languages": ["English", "Romanian"],
+      "duration": 8,
+      "url": "https://example.com/promo",
+      "description": "CSV Generator Promotional Banner - 600x80px",
+      "id": 1001,
+      "timestamp": 1714500000
+    },
+    {
+      "file": "promo2.png",
+      "languages": ["all"],
+      "duration": 6,
+      "description": "New Feature Announcement - 500x80px",
+      "id": 1002,
+      "timestamp": 1714500100
+    }
+  ],
+  "texts": [
+    {
+      "description": "Welcome to CSV Generator! A tool by #[#DE3163]Adalbert Alexandru Ungureanu#",
+      "languages": ["English"],
+      "duration": 10,
+      "id": 2001,
+      "timestamp": 1714500300
+    },
+    {
+      "description": "Bine ați venit la CSV Generator! Un instrument creat de #[#DE3163]Adalbert Alexandru Ungureanu#",
+      "languages": ["Romanian"],
+      "duration": 25,
+      "id": 2002,
+      "timestamp": 1714500400
+    },
+    {
+      "description": "Generate CSV files for #[#4CAF50]BOM# and #[#FFC107]PINS# data with ease",
+      "languages": ["English"],
+      "duration": 20,
+      "id": 2003,
+      "timestamp": 1714500500
+    },
+    {
+      "description": "Generați fișiere CSV pentru date #[#4CAF50]BOM# și #[#FFC107]PINS# cu ușurință",
+      "languages": ["Romanian"],
+      "duration": 20,
+      "id": 2004,
+      "timestamp": 1714500600
+    },
+    {
+      "description": "For support, contact #[#DE3163]adalbertalexandru.ungureanu@flex.com#",
+      "languages": ["all"],
+      "duration": 22,
+      "url": "mailto:adalbertalexandru.ungureanu@flex.com",
+      "id": 2005,
+      "timestamp": 1714500700
+    },
+    {
+      "description": "CSV Generator v1.1 - #[#4CAF50]Copyright 2025 Flex#",
+      "languages": ["all"],
+      "duration": 25,
+      "id": 2006,
+      "timestamp": 1714500800
+    }
+  ]
+}
