@@ -114,16 +114,28 @@ jobs:
     - name: Build with MSBuild (.NET Framework 4.8)
       id: build_net48
       run: |
-        # Find the solution file
-        $solutionFile = Get-ChildItem -Path . -Filter *.sln | Select-Object -First 1
-        
-        if ($solutionFile) {
-          echo "Building solution: $($solutionFile.FullName)"
-          msbuild $($solutionFile.FullName) /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net48 /p:DefineConstants="NETFRAMEWORK"
+        # Check if the solution file exists in the root directory
+        if (Test-Path CSVGenerator.sln) {
+          echo "Building solution from root directory: CSVGenerator.sln"
+          msbuild CSVGenerator.sln /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net48 /p:DefineConstants="NETFRAMEWORK"
           echo "build_exit_code=$LASTEXITCODE" >> $env:GITHUB_OUTPUT
         } else {
-          echo "::error::No solution file found!"
-          exit 1
+          # Try to find the solution file in the repository
+          $solutionFiles = Get-ChildItem -Path . -Filter *.sln -Recurse
+          if ($solutionFiles.Count -gt 0) {
+            echo "Found solution files:"
+            foreach ($file in $solutionFiles) {
+              echo "  $($file.FullName)"
+            }
+            
+            $solutionFile = $solutionFiles[0]
+            echo "Building solution: $($solutionFile.FullName)"
+            msbuild $($solutionFile.FullName) /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net48 /p:DefineConstants="NETFRAMEWORK"
+            echo "build_exit_code=$LASTEXITCODE" >> $env:GITHUB_OUTPUT
+          } else {
+            echo "::error::No solution file found!"
+            exit 1
+          }
         }
       shell: pwsh
       continue-on-error: true
