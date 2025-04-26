@@ -147,12 +147,12 @@ jobs:
         Get-ChildItem -Path . -Include *.exe,*.dll -Recurse | Select-Object FullName
       shell: pwsh
     
-    - name: Create output directories and copy files
+    - name: Create output directory and copy EXE file
       run: |
         mkdir -p output
         
-        # Find all EXE files and copy them to output
-        $exeFiles = Get-ChildItem -Path . -Include *.exe -Recurse | Where-Object { $_.FullName -notlike "*\\Common\\*" -and $_.FullName -notlike "*\\packages\\*" -and $_.FullName -notlike "*\\obj\\*" }
+        # Find CSVGenerator.exe and copy it to output
+        $exeFiles = Get-ChildItem -Path . -Include CSVGenerator.exe -Recurse | Where-Object { $_.FullName -notlike "*\\Common\\*" -and $_.FullName -notlike "*\\packages\\*" -and $_.FullName -notlike "*\\obj\\*" }
         if ($exeFiles.Count -gt 0) {
           foreach ($file in $exeFiles) {
             $destPath = Join-Path "output" $file.Name
@@ -161,34 +161,6 @@ jobs:
           }
         } else {
           echo "::warning::No EXE files found to copy!"
-        }
-        
-        # Find all DLL files and copy them to output
-        $dllFiles = Get-ChildItem -Path . -Include *.dll -Recurse | Where-Object { $_.FullName -notlike "*\\Common\\*" -and $_.FullName -notlike "*\\packages\\*" -and $_.FullName -notlike "*\\obj\\*" }
-        if ($dllFiles.Count -gt 0) {
-          foreach ($file in $dllFiles) {
-            $destPath = Join-Path "output" $file.Name
-            Copy-Item -Path $file.FullName -Destination $destPath -Force
-            echo "Copied DLL: $($file.FullName) to $destPath"
-          }
-        } else {
-          echo "::warning::No DLL files found to copy!"
-        }
-        
-        # Also copy Newtonsoft.Json.dll
-        $newtonsoftDll = Get-ChildItem -Path . -Include Newtonsoft.Json.dll -Recurse | Select-Object -First 1
-        if ($newtonsoftDll) {
-          $destPath = Join-Path "output" "Newtonsoft.Json.dll"
-          Copy-Item -Path $newtonsoftDll.FullName -Destination $destPath -Force
-          echo "Copied Newtonsoft.Json.dll: $($newtonsoftDll.FullName) to $destPath"
-        }
-        
-        # Also copy Common.dll
-        $commonDll = Get-ChildItem -Path . -Include Common.dll -Recurse | Select-Object -First 1
-        if ($commonDll) {
-          $destPath = Join-Path "output" "Common.dll"
-          Copy-Item -Path $commonDll.FullName -Destination $destPath -Force
-          echo "Copied Common.dll: $($commonDll.FullName) to $destPath"
         }
       shell: pwsh
     
@@ -208,4 +180,3 @@ jobs:
         name: CSVGenerator-build-outputs
         path: output/
         if-no-files-found: warn
-
