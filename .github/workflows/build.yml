@@ -67,21 +67,12 @@ jobs:
         $content = Get-Content -Path $csprojPath -Raw
         # Add Newtonsoft.Json reference if missing
         if (-not ($content -match "Newtonsoft.Json")) {
-          $newContent = $content -replace '</Project>', @'
-  <ItemGroup>
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-  </ItemGroup>
-</Project>
-'@
+          $newContent = $content -replace '</Project>', "  <ItemGroup>`n    <PackageReference Include=\"Newtonsoft.Json\" Version=\"13.0.3\" />`n  </ItemGroup>`n</Project>"
           $content = $newContent
         }
 
         # Update Common reference
-        $newContent = $content -replace '<ProjectReference Include="..\\Common\\Common.csproj" />', @'
-<Reference Include="Common">
-  <HintPath>Common/bin/Release/Common.dll</HintPath>
-</Reference>
-'@
+        $newContent = $content -replace '<ProjectReference Include="..\\Common\\Common.csproj" />', "<Reference Include=\"Common\">`n  <HintPath>Common/bin/Release/Common.dll</HintPath>`n</Reference>"
         $content = $newContent
 
         Set-Content -Path $csprojPath -Value $content
@@ -134,3 +125,5 @@ jobs:
             issue_number: context.payload.pull_request?.number || 0,
             body: 'Build failed! Please check the workflow logs.'
           })
+
+
