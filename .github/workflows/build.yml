@@ -56,28 +56,7 @@ jobs:
       env:
         NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
 
-    - name: Update project references
-      run: |
-        $csprojPath = "CSVGenerator.csproj"
-        if (-not (Test-Path $csprojPath)) {
-          Write-Error "CSVGenerator.csproj not found!"
-          exit 1
-        }
-
-        $content = Get-Content -Path $csprojPath -Raw
-        # Add Newtonsoft.Json reference if missing
-        if (-not ($content -match "Newtonsoft.Json")) {
-          $newContent = $content -replace '</Project>', "  <ItemGroup>`n    <PackageReference Include=\"Newtonsoft.Json\" Version=\"13.0.3\" />`n  </ItemGroup>`n</Project>"
-          $content = $newContent
-        }
-
-        # Update Common reference
-        $newContent = $content -replace '<ProjectReference Include="..\\Common\\Common.csproj" />', "<Reference Include=\"Common\">`n  <HintPath>Common/bin/Release/Common.dll</HintPath>`n</Reference>"
-        $content = $newContent
-
-        Set-Content -Path $csprojPath -Value $content
-        Get-Content -Path $csprojPath | Select-String -Pattern "Reference"
-      shell: pwsh
+    - name: List directory structure\n      run: |\n        dir\n        dir -Recurse -Include *.csproj -Depth 3
 
     - name: Build solution
       run: |
@@ -114,16 +93,11 @@ jobs:
         if-no-files-found: error
         retention-days: 30
 
-    - name: Notify on failure
-      if: failure()
-      uses: actions/github-script@v7
-      with:
-        script: |
-          await github.rest.issues.createComment({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
             issue_number: context.payload.pull_request?.number || 0,
             body: 'Build failed! Please check the workflow logs.'
           })
+
+
+
 
 
