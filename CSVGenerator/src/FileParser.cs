@@ -7,7 +7,7 @@ using System.Text.RegularExpressions;
 #if NET6_0_OR_GREATER
 #nullable enable
 #else
-#pragma warning disable CS8600, CS8602, CS8603, CS8604, CS8618, CS8625
+
 #endif
 
 namespace CSVGenerator
