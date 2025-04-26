@@ -40,15 +40,6 @@ jobs:
         choco install netfx-4.8-devpack -y
       shell: pwsh
       
-    - name: Copy app.ico to project directory
-      run: |
-        if (Test-Path app.ico) {
-          Copy-Item -Path app.ico -Destination CSVGenerator/app.ico -Force
-          echo "Copied app.ico to CSVGenerator directory"
-        } else {
-          echo "app.ico not found in main directory"
-        }
-      shell: pwsh
     
     - name: List directory structure
       run: |
@@ -160,7 +151,7 @@ jobs:
             echo "Copied EXE: $($file.FullName) to $destPath"
           }
         } else {
-          echo "::warning::No EXE files found to copy!"
+          echo "::warning::No EXE files found to copy!"\n            # List all exe files in the repository for debugging\n            echo "All EXE files in repository:"\n            Get-ChildItem -Path . -Include *.exe -Recurse | Select-Object FullName
         }
       shell: pwsh
     
@@ -180,5 +171,7 @@ jobs:
         name: CSVGenerator
         path: output/CSVGenerator.exe
         if-no-files-found: warn
+
+
 
 
