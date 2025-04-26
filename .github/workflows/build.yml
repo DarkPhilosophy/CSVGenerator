@@ -120,7 +120,7 @@ jobs:
         # Check if the solution file exists in the root directory
         if (Test-Path CSVGenerator.sln) {
           echo "Building solution from root directory: CSVGenerator.sln"
-          msbuild CSVGenerator.sln /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net48  /p:RestorePackagesConfig=true
+          msbuild CSVGenerator.sln /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net48   /p:RestorePackagesConfig=true
           echo "build_exit_code=$LASTEXITCODE" >> $env:GITHUB_OUTPUT
         } else {
           # Try to find the solution file in the repository
@@ -133,7 +133,7 @@ jobs:
             
             $solutionFile = $solutionFiles[0]
             echo "Building solution: $($solutionFile.FullName)"
-            msbuild $($solutionFile.FullName) /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net48  /p:RestorePackagesConfig=true
+            msbuild $($solutionFile.FullName) /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net48   /p:RestorePackagesConfig=true
             echo "build_exit_code=$LASTEXITCODE" >> $env:GITHUB_OUTPUT
           } else {
             echo "::error::No solution file found!"
@@ -217,6 +217,8 @@ jobs:
         name: CSVGenerator-build-outputs
         path: output/
         if-no-files-found: warn
+
+
 
 
 
