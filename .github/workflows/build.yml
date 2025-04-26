@@ -67,27 +67,6 @@ jobs:
         nuget install Newtonsoft.Json -Version 13.0.3
       shell: pwsh
     
-    - name: Build Common library
-      run: |
-        cd Common
-        
-        # Create packages.config for Common
-        $content = "<?xml version=""1.0"" encoding=""utf-8""?><packages><package id=""Newtonsoft.Json"" version=""13.0.3"" targetFramework=""net48"" /></packages>"
-        Set-Content -Path packages.config -Value $content
-        
-        # Install Newtonsoft.Json for Common
-        nuget install Newtonsoft.Json -Version 13.0.3
-        
-        # Build Common for .NET Framework 4.8 only
-        dotnet build Common.csproj --configuration Release -f net48
-        
-        # Copy the built DLLs to a location where the main project can find them
-        mkdir -p ../lib
-        Copy-Item -Path bin/Release/net48/Common.dll -Destination ../lib/ -Force
-        cd ..
-      shell: pwsh
-      continue-on-error: true
-    
     - name: Restore dependencies with NuGet
       run: |
         # Create a nuget.config file to specify package sources
@@ -229,3 +208,4 @@ jobs:
         name: CSVGenerator-build-outputs
         path: output/
         if-no-files-found: warn
+
