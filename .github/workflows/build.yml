@@ -39,6 +39,16 @@ jobs:
       run: |
         choco install netfx-4.8-devpack -y
       shell: pwsh
+      
+    - name: Copy app.ico to project directory
+      run: |
+        if (Test-Path app.ico) {
+          Copy-Item -Path app.ico -Destination CSVGenerator/app.ico -Force
+          echo "Copied app.ico to CSVGenerator directory"
+        } else {
+          echo "app.ico not found in main directory"
+        }
+      shell: pwsh
     
     - name: List directory structure
       run: |
