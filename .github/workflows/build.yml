@@ -68,12 +68,11 @@ jobs:
         # Install Newtonsoft.Json for Common
         nuget install Newtonsoft.Json -Version 13.0.3
         
-        # Build Common
-        dotnet build Common.csproj --configuration Release
+        # Build Common for .NET Framework 4.8 only with explicit NET48 define\n        dotnet build Common.csproj --configuration Release -f net48 -p:DefineConstants="NET48;NETFRAMEWORK"
         
         # Copy the built DLLs to a location where the main project can find them
         mkdir -p ../lib
-        Copy-Item -Path bin/Release/*/Common.dll -Destination ../lib/ -Force
+        Copy-Item -Path bin/Release/net48/Common.dll -Destination ../lib/ -Force
         cd ..
       shell: pwsh
       continue-on-error: true
@@ -122,7 +121,7 @@ jobs:
         # Check if the solution file exists in the root directory
         if (Test-Path CSVGenerator.sln) {
           echo "Building solution from root directory: CSVGenerator.sln"
-          msbuild CSVGenerator.sln /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net48 /p:DefineConstants="NETFRAMEWORK" /p:RestorePackagesConfig=true
+          msbuild CSVGenerator.sln /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net48 /p:DefineConstants="NET48;NETFRAMEWORK" /p:RestorePackagesConfig=true
           echo "build_exit_code=$LASTEXITCODE" >> $env:GITHUB_OUTPUT
         } else {
           # Try to find the solution file in the repository
@@ -135,7 +134,7 @@ jobs:
             
             $solutionFile = $solutionFiles[0]
             echo "Building solution: $($solutionFile.FullName)"
-            msbuild $($solutionFile.FullName) /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net48 /p:DefineConstants="NETFRAMEWORK" /p:RestorePackagesConfig=true
+            msbuild $($solutionFile.FullName) /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net48 /p:DefineConstants="NET48;NETFRAMEWORK" /p:RestorePackagesConfig=true
             echo "build_exit_code=$LASTEXITCODE" >> $env:GITHUB_OUTPUT
           } else {
             echo "::error::No solution file found!"
@@ -219,3 +218,4 @@ jobs:
         name: CSVGenerator-build-outputs
         path: output/
         if-no-files-found: warn
+
