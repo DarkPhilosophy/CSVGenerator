@@ -123,8 +123,14 @@ dotnet publish CSVGenerator\CSVGenerator.csproj -r win-x64 -f net48 -c Release -
     <EmbeddedResource Include="assets\Languages\Romanian.xaml" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Reference Include="Common"><HintPath>lib\\Common.dll</HintPath></Reference>
+  <!-- Project reference for local development -->
+  <ItemGroup Condition="Exists('..\Common\Common.csproj')">
+    <ProjectReference Include="..\Common\Common.csproj" />
+  </ItemGroup>
+
+  <!-- Project reference for GitHub Actions -->
+  <ItemGroup Condition="Exists('..\..\Common\Common.csproj')">
+    <ProjectReference Include="..\..\Common\Common.csproj" />
   </ItemGroup>
 
 
