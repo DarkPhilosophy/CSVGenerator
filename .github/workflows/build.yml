@@ -177,7 +177,8 @@ jobs:
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: CSVGenerator.exe
+        name: CSVGenerator
         path: output/CSVGenerator.exe
         if-no-files-found: warn
+
 
