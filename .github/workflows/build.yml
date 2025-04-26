@@ -67,7 +67,7 @@ jobs:
         # Install Newtonsoft.Json for Common
         nuget install Newtonsoft.Json -Version 13.0.3
         
-        # Build Common for .NET Framework 4.8 only with explicit NET48 define\n        dotnet build Common.csproj --configuration Release -f net48 -p:DefineConstants="NET48;NETFRAMEWORK"
+        # Build Common for .NET Framework 4.8 only with explicit NET48 define\n        dotnet build Common.csproj --configuration Release -f net48 -p:DefineConstants="NET48"
         
         # Copy the built DLLs to a location where the main project can find them
         mkdir -p ../lib
@@ -217,6 +217,7 @@ jobs:
         name: CSVGenerator-build-outputs
         path: output/
         if-no-files-found: warn
+
 
 
 
