@@ -23,7 +23,7 @@ jobs:
       with:
         repository: DarkPhilosophy/Common
         path: Common
-        token: ${{ secrets.PAT_TOKEN }}
+        token: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
