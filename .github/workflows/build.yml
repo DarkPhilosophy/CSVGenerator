@@ -50,13 +50,16 @@ jobs:
       run: choco install netfx-4.8-devpack -y
       if: steps.cache.outputs.cache-hit != 'true'
 
+    - name: List directory structure
+      run: |
+        dir
+        dir -Recurse -Include *.csproj -Depth 3
+
     - name: Restore NuGet packages
       run: |
         dotnet restore CSVGenerator.sln --configfile nuget.config
       env:
         NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
-
-    - name: List directory structure\n      run: |\n        dir\n        dir -Recurse -Include *.csproj -Depth 3
 
     - name: Build solution
       run: |
@@ -92,12 +95,4 @@ jobs:
         path: output/*.exe
         if-no-files-found: error
         retention-days: 30
-
-            issue_number: context.payload.pull_request?.number || 0,
-            body: 'Build failed! Please check the workflow logs.'
-          })
-
-
-
-
 
