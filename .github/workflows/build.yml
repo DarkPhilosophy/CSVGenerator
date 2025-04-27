@@ -1,0 +1,186 @@
+﻿name: Build CSVGenerator
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+# Add permissions needed for creating releases
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch all history for proper versioning
+
+    - name: Checkout Common library
+      uses: actions/checkout@v4
+      with:
+        repository: DarkPhilosophy/Common
+        path: Common
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: |
+          6.0.x
+          8.0.x
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Setup NuGet
+      uses: nuget/setup-nuget@v2
+
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.config', '**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+
+    - name: Install .NET Framework Developer Pack
+      run: choco install netfx-4.8-devpack -y
+      if: steps.cache.outputs.cache-hit != 'true'
+
+    - name: List directory structure
+      run: |
+        dir
+        dir -Recurse -Include *.csproj -Depth 3
+
+    - name: Restore NuGet packages
+      run: |
+        dotnet restore CSVGenerator.sln --configfile nuget.config
+      env:
+        NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+
+    - name: Build solution
+      run: |
+        msbuild CSVGenerator.sln `
+          /p:Configuration=Release `
+          /p:Platform="Any CPU" `
+          /p:TargetFramework=net48 `
+          /restore `
+          /maxcpucount
+      env:
+        MSBUILDERRORONFAILURE: 1
+
+    - name: Copy build outputs and generate metadata
+      id: build-info
+      run: |
+        # Create output directory
+        $outputDir = "output"
+        New-Item -ItemType Directory -Path $outputDir -Force
+        
+        # Find the executable files
+        $exeFiles = Get-ChildItem -Path . -Include *.exe -Recurse -Exclude "*\Common\*","*\packages\*","*\obj\*"
+        
+        if ($exeFiles) {
+          # Copy all executables found
+          $exeFiles | ForEach-Object {
+            Copy-Item -Path $_.FullName -Destination $outputDir -Force
+            Write-Output "Copied: $($_.FullName) to $outputDir"
+            
+            # Get file version info
+            $exeName = $_.Name
+            $versionInfo = (Get-Item "$outputDir\$exeName").VersionInfo
+            $fileVersion = $versionInfo.FileVersion
+            $productVersion = $versionInfo.ProductVersion
+            
+            # Calculate SHA256 hash
+            $sha256 = Get-FileHash -Path "$outputDir\$exeName" -Algorithm SHA256 | Select-Object -ExpandProperty Hash
+            
+            # Get build timestamp
+            $buildTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+            
+            # Get commit info
+            $commitHash = git rev-parse HEAD
+            $commitMessage = git log -1 --pretty=%B
+            
+            # Create release folder structure
+            $releaseDir = "Release"
+            $versionDir = "$releaseDir\CSVGenerator-net48-fd-$fileVersion"
+            New-Item -ItemType Directory -Path $versionDir -Force
+            
+            # Copy executable to release directory
+            Copy-Item -Path "$outputDir\$exeName" -Destination $versionDir -Force
+            
+            # Create metadata file with string concatenation instead of here-string
+            $metadataContent = "Product: CSVGenerator" + [Environment]::NewLine
+            $metadataContent += "File: $exeName" + [Environment]::NewLine
+            $metadataContent += "Version: $fileVersion" + [Environment]::NewLine
+            $metadataContent += "Build Time: $buildTime" + [Environment]::NewLine
+            $metadataContent += "Commit: $commitHash" + [Environment]::NewLine
+            $metadataContent += "Commit Message: $commitMessage" + [Environment]::NewLine
+            $metadataContent += "SHA256: $sha256"
+            
+            Set-Content -Path "$versionDir\$exeName.metadata.txt" -Value $metadataContent
+            
+            # Also create a metadata file in the output directory for artifact upload
+            Set-Content -Path "$outputDir\$exeName.metadata.txt" -Value $metadataContent
+            
+            # Create a release notes file
+            $releaseNotes = "# CSVGenerator $fileVersion" + [Environment]::NewLine
+            $releaseNotes += "Build Date: $buildTime" + [Environment]::NewLine
+            $releaseNotes += "SHA256: $sha256" + [Environment]::NewLine
+            $releaseNotes += [Environment]::NewLine
+            $releaseNotes += "## Changes" + [Environment]::NewLine
+            $releaseNotes += "- $commitMessage"
+            
+            Set-Content -Path "$outputDir\release-notes.md" -Value $releaseNotes
+            
+            # Set output variables for the GitHub release step
+            "version=$fileVersion" >> $env:GITHUB_OUTPUT
+            
+            Write-Output "Release package created at: $versionDir"
+            Write-Output "SHA256: $sha256"
+          }
+        } else {
+          Write-Warning "No executable files found!"
+          Get-ChildItem -Path . -Include *.exe -Recurse | Select-Object FullName
+        }
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: CSVGenerator
+        path: output/*.exe
+        if-no-files-found: error
+        retention-days: 30
+        
+    - name: Upload metadata
+      uses: actions/upload-artifact@v4
+      with:
+        name: CSVGenerator-metadata
+        path: output/*.metadata.txt
+        if-no-files-found: error
+        retention-days: 30
+        
+    - name: Create GitHub Release
+      if: github.event_name != 'pull_request'
+      uses: softprops/action-gh-release@v1
+      with:
+        name: CSVGenerator v${{ steps.build-info.outputs.version }}
+        tag_name: v${{ steps.build-info.outputs.version }}
+        body_path: output/release-notes.md
+        files: |
+          output/*.exe
+          output/*.metadata.txt
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

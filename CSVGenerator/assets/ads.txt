@@ -1,0 +1,10 @@
+
+For support, contact #[#DE3163]adalbertalexandru.ungureanu@flex.com#
+
+#[English]Welcome to CSV Generator! A tool by #[#DE3163]Adalbert Alexandru Ungureanu###[Romanian]Bine ați venit la CSV Generator! Un instrument creat de #[#DE3163]Adalbert Alexandru Ungureanu##
+
+#[English]Generate CSV files for #[#4CAF50]BOM# and #[#FFC107]PINS# data with ease###[Romanian]Generați fișiere CSV pentru date #[#4CAF50]BOM# și #[#FFC107]PINS# cu ușurință##
+
+#[English]Use the #[#2196F3]language button# to switch between #[#9C27B0]English# and #[#E91E63]Romanian###[Romanian]Folosiți #[#2196F3]butonul de limbă# pentru a comuta între #[#9C27B0]Engleză# și #[#E91E63]Română##
+
+#[#FF5722]Drag and drop# files to quickly load them

@@ -1,0 +1,4 @@
+Welcome to ConfigReplacer - A utility to replace strings in configuration files
+This application allows you to replace FFTesterBER with FFTesterSCH in config.json files
+Click the button to start the replacement process
+Created by Adalbert Alexandru Ungureanu

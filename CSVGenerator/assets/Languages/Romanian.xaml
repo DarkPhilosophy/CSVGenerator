@@ -1,0 +1,93 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:system="clr-namespace:System;assembly=mscorlib">
+
+    <!-- Application Title -->
+    <system:String x:Key="AppTitle">Generator CSV</system:String>
+    <system:String x:Key="AppSubtitle">Fișiere pentru date BOM și PINS cu ușurință</system:String>
+    <system:String x:Key="Copyright">© 2025 Adalbert Alexandru Ungureanu (adalbertalexandru.ungureanu@flex.com)</system:String>
+
+    <!-- Main Window -->
+    <system:String x:Key="ShowLogWindow">Arată Fereastra de Jurnal</system:String>
+    <system:String x:Key="HideLogWindow">Ascunde Fereastra de Jurnal</system:String>
+    <system:String x:Key="LogWindowTitle">Fereastra de Jurnal</system:String>
+    <system:String x:Key="SelectBomSplitFile">Selectează Fișier BomSplit</system:String>
+    <system:String x:Key="SelectCadPinsFile">Selectează Fișier CadPins</system:String>
+    <system:String x:Key="Browse">Răsfoiește...</system:String>
+    <system:String x:Key="DropFileHere">Trage fișierul aici</system:String>
+    <system:String x:Key="Client">Client:</system:String>
+    <system:String x:Key="AddClient">Adaugă Client</system:String>
+    <system:String x:Key="RemoveClient">Șterge Client</system:String>
+    <system:String x:Key="Program">Program:</system:String>
+    <system:String x:Key="GenerateCSV">Generează CSV</system:String>
+    <system:String x:Key="LanguageButton">Schimbă la Engleză</system:String>
+    <system:String x:Key="Processing">Procesare...</system:String>
+    <system:String x:Key="Completed">Finalizat</system:String>
+    <system:String x:Key="Error">Eroare</system:String>
+
+    <!-- Messages -->
+    <system:String x:Key="FileNotFound">Fișierul nu a fost găsit</system:String>
+    <system:String x:Key="InvalidFile">Format de fișier invalid</system:String>
+    <system:String x:Key="SelectBomSplitFirst">Vă rugăm să selectați mai întâi un fișier BomSplit</system:String>
+    <system:String x:Key="SelectClientFirst">Vă rugăm să selectați mai întâi un client</system:String>
+    <system:String x:Key="EnterProgramFirst">Vă rugăm să introduceți mai întâi un nume de program</system:String>
+    <system:String x:Key="ProcessingCompleted">Procesare finalizată cu succes</system:String>
+    <system:String x:Key="ProcessingFailed">Procesarea a eșuat</system:String>
+    <system:String x:Key="LanguageChanged">Limba a fost schimbată în {0}</system:String>
+    <system:String x:Key="AddNewClient">Adaugă Client Nou</system:String>
+    <system:String x:Key="EnterClientName">Introduceți numele clientului:</system:String>
+    <system:String x:Key="ClientExists">Clientul există deja</system:String>
+    <system:String x:Key="ConfirmRemoveClient">Sigur doriți să ștergeți acest client?</system:String>
+    <system:String x:Key="Yes">Da</system:String>
+    <system:String x:Key="No">Nu</system:String>
+    <system:String x:Key="Cancel">Anulează</system:String>
+    <system:String x:Key="OK">OK</system:String>
+
+    <!-- File Dialog -->
+    <system:String x:Key="OpenFileDialogTitle">Selectează Fișier</system:String>
+    <system:String x:Key="FileFilter">Toate Fișierele (*.*)|*.*|Fișiere ASC (*.asc)|*.asc</system:String>
+
+    <!-- Units -->
+    <system:String x:Key="Unit">Unitate:</system:String>
+    <system:String x:Key="CM">cm</system:String>
+    <system:String x:Key="Inch">inch</system:String>
+
+    <!-- Progress -->
+    <system:String x:Key="ParsingBomFile">Analizare fișier BOM</system:String>
+    <system:String x:Key="ParsingPinsFile">Analizare fișier PINS</system:String>
+    <system:String x:Key="GeneratingTopCSV">Generare CSV partea de sus</system:String>
+    <system:String x:Key="GeneratingBotCSV">Generare CSV partea de jos</system:String>
+    <system:String x:Key="SavingFiles">Salvare fișiere</system:String>
+
+    <!-- Log Window Context Menu -->
+    <system:String x:Key="CopyAll">Copiază Tot</system:String>
+    <system:String x:Key="CopySelected">Copiază Selecția</system:String>
+    <system:String x:Key="ClearLog">Șterge</system:String>
+    <system:String x:Key="DetachFromMainWindow">Detașează de Fereastra Principală</system:String>
+    <system:String x:Key="AttachToMainWindow">Atașează la Fereastra Principală</system:String>
+    <system:String x:Key="CopiedToClipboard">Text copiat în clipboard</system:String>
+    <system:String x:Key="SelectionCopiedToClipboard">Selecție copiată în clipboard</system:String>
+    <system:String x:Key="LogCleared">Jurnal șters</system:String>
+    <system:String x:Key="ClipboardError">Eroare la copierea în clipboard</system:String>
+    <system:String x:Key="ClearLogError">Eroare la ștergerea jurnalului</system:String>
+    <system:String x:Key="AttachmentError">Eroare la schimbarea atașamentului</system:String>
+    <system:String x:Key="WaitBeforeCopying">Vă rugăm să așteptați înainte de a copia din nou</system:String>
+
+    <!-- File Parser Messages -->
+    <system:String x:Key="ParsedBomFile">Fișier BOM analizat cu {0} componente</system:String>
+    <system:String x:Key="ParsedPinsFile">Fișier PINS analizat cu {0} componente</system:String>
+    <system:String x:Key="GeneratingTopSideCSV">Generare CSV partea de sus pentru {0} componente BOM</system:String>
+    <system:String x:Key="WritingTopCsv">Scriere CSV partea de sus: {0} cu {1} linii</system:String>
+    <system:String x:Key="GeneratedTopSideCSV">CSV partea de sus generat: {0} cu {1} linii</system:String>
+    <system:String x:Key="NoTopCsvLines">Nu există linii CSV pentru partea de sus {0}</system:String>
+    <system:String x:Key="GeneratingBotSideCSV">Generare CSV partea de jos pentru {0} componente PINS</system:String>
+    <system:String x:Key="NoPinsDataForBomPart">Nu există date PINS pentru componenta BOM {0} (Tip: {1})</system:String>
+    <system:String x:Key="MatchedBomPart">Componentă BOM {0} (Tip: {1}) potrivită cu componenta PINS (Tip: {2}), Intrări BOM: {3}, Intrări PINS: {4}</system:String>
+    <system:String x:Key="FoundMatchingParts">Găsite {0} componente potrivite pentru CSV partea de jos</system:String>
+    <system:String x:Key="WritingBotCsv">Scriere CSV partea de jos: {0} cu {1} linii</system:String>
+    <system:String x:Key="GeneratedBotSideCSV">CSV partea de jos generat: {0} cu {1} linii</system:String>
+    <system:String x:Key="NoBotCsvLines">Nu există linii CSV pentru partea de jos {0}</system:String>
+    <system:String x:Key="ProcessingCompletedSuccessfully">Procesare finalizată cu succes</system:String>
+    <system:String x:Key="ReadyToProcess">Gata pentru procesarea fișierelor. Faceți clic pe unul dintre butoane pentru a începe.</system:String>
+
+</ResourceDictionary>
