@@ -1,4 +1,4 @@
-name: Build CSVGenerator
+﻿name: Build CSVGenerator
 
 on:
   push:
@@ -72,19 +72,66 @@ jobs:
       env:
         MSBUILDERRORONFAILURE: 1
 
-    - name: Copy build outputs
+    - name: Copy build outputs and generate metadata
       run: |
+        # Create output directory
         $outputDir = "output"
         New-Item -ItemType Directory -Path $outputDir -Force
-        $exeFiles = Get-ChildItem -Path . -Include CSVGenerator.exe -Recurse -Exclude "*\Common\*","*\packages\*","*\obj\*"
+        
+        # Find the executable files
+        $exeFiles = Get-ChildItem -Path . -Include *.exe -Recurse -Exclude "*\Common\*","*\packages\*","*\obj\*"
         
         if ($exeFiles) {
+          # Copy all executables found
           $exeFiles | ForEach-Object {
             Copy-Item -Path $_.FullName -Destination $outputDir -Force
             Write-Output "Copied: $($_.FullName) to $outputDir"
+            
+            # Get file version info
+            $exeName = $_.Name
+            $versionInfo = (Get-Item "$outputDir\$exeName").VersionInfo
+            $fileVersion = $versionInfo.FileVersion
+            $productVersion = $versionInfo.ProductVersion
+            
+            # Calculate SHA256 hash
+            $sha256 = Get-FileHash -Path "$outputDir\$exeName" -Algorithm SHA256 | Select-Object -ExpandProperty Hash
+            
+            # Get build timestamp
+            $buildTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+            
+            # Get commit info
+            $commitHash = git rev-parse HEAD
+            $commitMessage = git log -1 --pretty=%B
+            
+            # Create release folder structure
+            $releaseDir = "Release"
+            $versionDir = "$releaseDir\CSVGenerator-net48-fd-$fileVersion"
+            New-Item -ItemType Directory -Path $versionDir -Force
+            
+            # Copy executable to release directory
+            Copy-Item -Path "$outputDir\$exeName" -Destination $versionDir -Force
+            
+            # Create metadata file
+            $metadataContent = @"
+Product: CSVGenerator
+File: $exeName
+Version: $fileVersion
+Build Time: $buildTime
+Commit: $commitHash
+Commit Message: $commitMessage
+SHA256: $sha256
+"@
+            
+            Set-Content -Path "$versionDir\$exeName.metadata.txt" -Value $metadataContent
+            
+            # Also create a metadata file in the output directory for artifact upload
+            Set-Content -Path "$outputDir\$exeName.metadata.txt" -Value $metadataContent
+            
+            Write-Output "Release package created at: $versionDir"
+            Write-Output "SHA256: $sha256"
           }
         } else {
-          Write-Warning "No CSVGenerator.exe found!"
+          Write-Warning "No executable files found!"
           Get-ChildItem -Path . -Include *.exe -Recurse | Select-Object FullName
         }
 
@@ -95,4 +142,11 @@ jobs:
         path: output/*.exe
         if-no-files-found: error
         retention-days: 30
-
+        
+    - name: Upload metadata
+      uses: actions/upload-artifact@v4
+      with:
+        name: CSVGenerator-metadata
+        path: output/*.metadata.txt
+        if-no-files-found: error
+        retention-days: 30
