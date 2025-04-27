@@ -73,6 +73,7 @@ jobs:
         MSBUILDERRORONFAILURE: 1
 
     - name: Copy build outputs and generate metadata
+      id: build-info
       run: |
         # Create output directory
         $outputDir = "output"
@@ -111,21 +112,32 @@ jobs:
             # Copy executable to release directory
             Copy-Item -Path "$outputDir\$exeName" -Destination $versionDir -Force
             
-            # Create metadata file
-            $metadataContent = @"
-Product: CSVGenerator
-File: $exeName
-Version: $fileVersion
-Build Time: $buildTime
-Commit: $commitHash
-Commit Message: $commitMessage
-SHA256: $sha256
-"@
+            # Create metadata file with string concatenation instead of here-string
+            $metadataContent = "Product: CSVGenerator" + [Environment]::NewLine
+            $metadataContent += "File: $exeName" + [Environment]::NewLine
+            $metadataContent += "Version: $fileVersion" + [Environment]::NewLine
+            $metadataContent += "Build Time: $buildTime" + [Environment]::NewLine
+            $metadataContent += "Commit: $commitHash" + [Environment]::NewLine
+            $metadataContent += "Commit Message: $commitMessage" + [Environment]::NewLine
+            $metadataContent += "SHA256: $sha256"
             
             Set-Content -Path "$versionDir\$exeName.metadata.txt" -Value $metadataContent
             
             # Also create a metadata file in the output directory for artifact upload
             Set-Content -Path "$outputDir\$exeName.metadata.txt" -Value $metadataContent
+            
+            # Create a release notes file
+            $releaseNotes = "# CSVGenerator $fileVersion" + [Environment]::NewLine
+            $releaseNotes += "Build Date: $buildTime" + [Environment]::NewLine
+            $releaseNotes += "SHA256: $sha256" + [Environment]::NewLine
+            $releaseNotes += [Environment]::NewLine
+            $releaseNotes += "## Changes" + [Environment]::NewLine
+            $releaseNotes += "- $commitMessage"
+            
+            Set-Content -Path "$outputDir\release-notes.md" -Value $releaseNotes
+            
+            # Set output variables for the GitHub release step
+            "version=$fileVersion" >> $env:GITHUB_OUTPUT
             
             Write-Output "Release package created at: $versionDir"
             Write-Output "SHA256: $sha256"
@@ -150,3 +162,18 @@ SHA256: $sha256
         path: output/*.metadata.txt
         if-no-files-found: error
         retention-days: 30
+        
+    - name: Create GitHub Release
+      if: github.event_name != 'pull_request'
+      uses: softprops/action-gh-release@v1
+      with:
+        name: CSVGenerator v${{ steps.build-info.outputs.version }}
+        tag_name: v${{ steps.build-info.outputs.version }}
+        body_path: output/release-notes.md
+        files: |
+          output/*.exe
+          output/*.metadata.txt
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
