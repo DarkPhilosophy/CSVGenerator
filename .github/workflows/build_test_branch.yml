@@ -33,12 +33,60 @@ jobs:
         choco install netfx-4.8-devpack -y
       shell: pwsh
       
+    - name: List directory structure
+      run: |
+        Write-Output "Current directory: $(Get-Location)"
+        Write-Output "Directory structure:"
+        Get-ChildItem -Path . -Recurse -Depth 2 | Select-Object FullName
+        Write-Output "Project files:"
+        Get-ChildItem -Path . -Include *.csproj -Recurse | Select-Object FullName
+      shell: pwsh
+      
+    - name: Check for nuget.config
+      run: |
+        if (Test-Path -Path "nuget.config") {
+          Write-Output "nuget.config found:"
+          Get-Content -Path "nuget.config"
+        } else {
+          Write-Output "nuget.config not found, creating default config"
+          Set-Content -Path "nuget.config" -Value @"
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources>
+    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" protocolVersion="3" />
+  </packageSources>
+</configuration>
+"@
+        }
+      shell: pwsh
+      
     - name: Restore NuGet packages
-      run: nuget restore CSVGenerator.csproj
+      run: |
+        try {
+          nuget restore -Verbosity detailed
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "NuGet restore failed with exit code $LASTEXITCODE"
+            exit 1
+          }
+        } catch {
+          Write-Error "NuGet restore failed with error: $_"
+          exit 1
+        }
+      shell: pwsh
       
     - name: Build
       run: |
-        msbuild CSVGenerator.csproj /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net48
+        try {
+          msbuild /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net48 /verbosity:detailed
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "MSBuild failed with exit code $LASTEXITCODE"
+            exit 1
+          }
+        } catch {
+          Write-Error "MSBuild failed with error: $_"
+          exit 1
+        }
+      shell: pwsh
       
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
