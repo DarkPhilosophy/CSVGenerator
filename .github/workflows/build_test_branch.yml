@@ -7,99 +7,42 @@ on:
     branches: [ test ]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  packages: read
-
 jobs:
   build:
     runs-on: windows-latest
-    defaults:
-      run:
-        shell: pwsh
-
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Checkout Common library (test branch)
+      
+    - name: Checkout Common library
       uses: actions/checkout@v4
       with:
         repository: DarkPhilosophy/Common
-        path: ../Common
+        path: Common
         ref: test
-        token: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: |
-          6.0.x
-          8.0.x
-
+        
     - name: Setup MSBuild
       uses: microsoft/setup-msbuild@v2
-
+      
     - name: Setup NuGet
       uses: nuget/setup-nuget@v2
-
-    - name: Install .NET Framework Developer Pack
-      run: choco install netfx-4.8-devpack -y
-
-    - name: Display environment info
+      
+    - name: Install .NET Framework 4.8 Developer Pack
       run: |
-        Write-Output "Current directory: $(Get-Location)"
-        Write-Output "Directory structure:"
-        Get-ChildItem -Path . -Recurse -Depth 2 | Select-Object FullName
-        Write-Output "Common directory structure:"
-        Get-ChildItem -Path ../Common -Recurse -Depth 2 | Select-Object FullName
-        Write-Output "Project files:"
-        Get-ChildItem -Path . -Include *.csproj -Recurse | Select-Object FullName
-
+        choco install netfx-4.8-devpack -y
+      shell: pwsh
+      
     - name: Restore NuGet packages
+      run: nuget restore CSVGenerator.csproj
+      
+    - name: Build
       run: |
-        nuget restore CSVGenerator.csproj -SolutionDirectory .
-        if ($LASTEXITCODE -ne 0) {
-          Write-Output "NuGet restore failed, trying alternative approach..."
-          dotnet restore CSVGenerator.csproj
-        }
-
-    - name: Build with MSBuild for .NET Framework 4.8
-      run: |
-        msbuild CSVGenerator.csproj /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net48 /verbosity:detailed
-        if ($LASTEXITCODE -ne 0) {
-          Write-Error "MSBuild failed with exit code $LASTEXITCODE"
-          exit 1
-        }
-
-    - name: Verify build outputs
-      run: |
-        Write-Output "Searching for build outputs..."
-        $exeFiles = Get-ChildItem -Path . -Include *.exe -Recurse -Exclude "*\Common\*","*\packages\*","*\obj\*"
-        if ($exeFiles) {
-          $exeFiles | ForEach-Object {
-            Write-Output "Found executable: $($_.FullName)"
-            $versionInfo = $_.VersionInfo
-            Write-Output "Version: $($versionInfo.FileVersion)"
-          }
-        } else {
-          Write-Output "No executable files found in the main directory."
-          Write-Output "Searching in bin directories..."
-          Get-ChildItem -Path . -Include bin -Directory -Recurse | ForEach-Object {
-            Write-Output "Contents of $($_.FullName):"
-            Get-ChildItem -Path $_.FullName -Recurse | Select-Object FullName
-          }
-          exit 1
-        }
-
-    - name: Upload build artifacts (for testing only)
+        msbuild CSVGenerator.csproj /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net48
+      
+    - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: CSVGenerator-TestBuild-net48
-        path: |
-          **/bin/Release/**/*.exe
-          **/bin/Release/**/*.dll
+        name: CSVGenerator-net48
+        path: bin/Release/net48
         if-no-files-found: warn
-        retention-days: 7
