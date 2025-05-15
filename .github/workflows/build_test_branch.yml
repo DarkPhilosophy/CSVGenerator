@@ -28,7 +28,7 @@ jobs:
       uses: actions/checkout@v4
       with:
         repository: DarkPhilosophy/Common
-        path: Common
+        path: ../Common
         ref: test
         token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -45,40 +45,38 @@ jobs:
     - name: Setup NuGet
       uses: nuget/setup-nuget@v2
 
-    - name: Cache NuGet packages
-      uses: actions/cache@v4
-      with:
-        path: ~/.nuget/packages
-        key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.config', '**/*.csproj') }}
-        restore-keys: |
-          ${{ runner.os }}-nuget-
-
     - name: Install .NET Framework Developer Pack
       run: choco install netfx-4.8-devpack -y
-      if: steps.cache.outputs.cache-hit != 'true'
 
-    - name: List directory structure
+    - name: Display environment info
       run: |
-        dir
-        dir -Recurse -Include *.csproj -Depth 3
+        Write-Output "Current directory: $(Get-Location)"
+        Write-Output "Directory structure:"
+        Get-ChildItem -Path . -Recurse -Depth 2 | Select-Object FullName
+        Write-Output "Common directory structure:"
+        Get-ChildItem -Path ../Common -Recurse -Depth 2 | Select-Object FullName
+        Write-Output "Project files:"
+        Get-ChildItem -Path . -Include *.csproj -Recurse | Select-Object FullName
 
     - name: Restore NuGet packages
       run: |
-        dotnet restore CSVGenerator.csproj -f net48 --configfile nuget.config
-      env:
-        NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
-
-    - name: Build project for .NET Framework 4.8 only
-      run: |
-        dotnet build CSVGenerator.csproj -f net48 -c Release
+        nuget restore CSVGenerator.csproj -SolutionDirectory .
         if ($LASTEXITCODE -ne 0) {
-          Write-Error "Build failed for .NET Framework 4.8"
+          Write-Output "NuGet restore failed, trying alternative approach..."
+          dotnet restore CSVGenerator.csproj
+        }
+
+    - name: Build with MSBuild for .NET Framework 4.8
+      run: |
+        msbuild CSVGenerator.csproj /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net48 /verbosity:detailed
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "MSBuild failed with exit code $LASTEXITCODE"
           exit 1
         }
-        Write-Output "Build succeeded for .NET Framework 4.8"
 
     - name: Verify build outputs
       run: |
+        Write-Output "Searching for build outputs..."
         $exeFiles = Get-ChildItem -Path . -Include *.exe -Recurse -Exclude "*\Common\*","*\packages\*","*\obj\*"
         if ($exeFiles) {
           $exeFiles | ForEach-Object {
@@ -87,7 +85,12 @@ jobs:
             Write-Output "Version: $($versionInfo.FileVersion)"
           }
         } else {
-          Write-Error "No executable files found!"
+          Write-Output "No executable files found in the main directory."
+          Write-Output "Searching in bin directories..."
+          Get-ChildItem -Path . -Include bin -Directory -Recurse | ForEach-Object {
+            Write-Output "Contents of $($_.FullName):"
+            Get-ChildItem -Path $_.FullName -Recurse | Select-Object FullName
+          }
           exit 1
         }
 
@@ -96,7 +99,7 @@ jobs:
       with:
         name: CSVGenerator-TestBuild-net48
         path: |
-          **/bin/Release/net48/**/*.exe
-          **/bin/Release/net48/**/*.dll
-        if-no-files-found: error
+          **/bin/Release/**/*.exe
+          **/bin/Release/**/*.dll
+        if-no-files-found: warn
         retention-days: 7
