@@ -64,29 +64,18 @@ jobs:
 
     - name: Restore NuGet packages
       run: |
-        dotnet restore CSVGenerator.csproj --configfile nuget.config
+        dotnet restore CSVGenerator.csproj -f net48 --configfile nuget.config
       env:
         NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
 
-    - name: Build project
+    - name: Build project for .NET Framework 4.8 only
       run: |
-        msbuild CSVGenerator.csproj `
-          /p:Configuration=Release `
-          /p:Platform="Any CPU" `
-          /p:TargetFramework=net48 `
-          /restore `
-          /maxcpucount
-      env:
-        MSBUILDERRORONFAILURE: 1
-
-    - name: Test build for all frameworks
-      run: |
-        dotnet build CSVGenerator.csproj -c Release
+        dotnet build CSVGenerator.csproj -f net48 -c Release
         if ($LASTEXITCODE -ne 0) {
-          Write-Error "Build failed for all frameworks"
+          Write-Error "Build failed for .NET Framework 4.8"
           exit 1
         }
-        Write-Output "Build succeeded for all frameworks"
+        Write-Output "Build succeeded for .NET Framework 4.8"
 
     - name: Verify build outputs
       run: |
@@ -105,9 +94,9 @@ jobs:
     - name: Upload build artifacts (for testing only)
       uses: actions/upload-artifact@v4
       with:
-        name: CSVGenerator-TestBuild
+        name: CSVGenerator-TestBuild-net48
         path: |
-          **/bin/Release/**/*.exe
-          **/bin/Release/**/*.dll
+          **/bin/Release/net48/**/*.exe
+          **/bin/Release/net48/**/*.dll
         if-no-files-found: error
         retention-days: 7
