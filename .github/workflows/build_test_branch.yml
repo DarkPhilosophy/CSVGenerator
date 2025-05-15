@@ -42,11 +42,12 @@ jobs:
         Get-ChildItem -Path . -Include *.csproj -Recurse | Select-Object FullName
       shell: pwsh
       
-    - name: Update target frameworks
+    - name: Update target frameworks in project files
       run: |
         Get-ChildItem -Path . -Include *.csproj -Recurse | ForEach-Object {
           $content = Get-Content $_.FullName -Raw
-          $updatedContent = $content -replace 'net10.0-windows', 'net9.0-windows'
+          $updatedContent = $content -replace '<TargetFrameworks>net48;net5.0-windows;net7.0-windows;net10.0-windows</TargetFrameworks>', '<TargetFrameworks>net48</TargetFrameworks>'
+          $updatedContent = $updatedContent -replace '<TargetFramework>net10.0-windows</TargetFramework>', '<TargetFramework>net48</TargetFramework>'
           Set-Content -Path $_.FullName -Value $updatedContent
           Write-Output "Updated target framework in $($_.FullName)"
         }
@@ -59,7 +60,7 @@ jobs:
       
     - name: Build
       run: |
-        msbuild CSVGenerator.csproj /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net48 /verbosity:detailed
+        msbuild CSVGenerator.csproj /p:Configuration=Release /p:Platform="Any CPU" /verbosity:detailed
       shell: pwsh
       
     - name: Upload artifacts
