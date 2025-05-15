@@ -42,50 +42,24 @@ jobs:
         Get-ChildItem -Path . -Include *.csproj -Recurse | Select-Object FullName
       shell: pwsh
       
-    - name: Check for nuget.config
+    - name: Update target frameworks
       run: |
-        if (Test-Path -Path "nuget.config") {
-          Write-Output "nuget.config found:"
-          Get-Content -Path "nuget.config"
-        } else {
-          Write-Output "nuget.config not found, creating default config"
-          Set-Content -Path "nuget.config" -Value @"
-<?xml version="1.0" encoding="utf-8"?>
-<configuration>
-  <packageSources>
-    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" protocolVersion="3" />
-  </packageSources>
-</configuration>
-"@
+        Get-ChildItem -Path . -Include *.csproj -Recurse | ForEach-Object {
+          $content = Get-Content $_.FullName -Raw
+          $updatedContent = $content -replace 'net10.0-windows', 'net9.0-windows'
+          Set-Content -Path $_.FullName -Value $updatedContent
+          Write-Output "Updated target framework in $($_.FullName)"
         }
       shell: pwsh
       
     - name: Restore NuGet packages
       run: |
-        try {
-          nuget restore -Verbosity detailed
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "NuGet restore failed with exit code $LASTEXITCODE"
-            exit 1
-          }
-        } catch {
-          Write-Error "NuGet restore failed with error: $_"
-          exit 1
-        }
+        nuget restore CSVGenerator.csproj
       shell: pwsh
       
     - name: Build
       run: |
-        try {
-          msbuild /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net48 /verbosity:detailed
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "MSBuild failed with exit code $LASTEXITCODE"
-            exit 1
-          }
-        } catch {
-          Write-Error "MSBuild failed with error: $_"
-          exit 1
-        }
+        msbuild CSVGenerator.csproj /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net48 /verbosity:detailed
       shell: pwsh
       
     - name: Upload artifacts
