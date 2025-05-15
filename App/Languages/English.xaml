@@ -87,7 +87,21 @@
     <system:String x:Key="WritingBotCsv">Writing BOT CSV: {0} with {1} lines</system:String>
     <system:String x:Key="GeneratedBotSideCSV">Generated BOT-side CSV: {0} with {1} lines</system:String>
     <system:String x:Key="NoBotCsvLines">No BOT CSV lines for side {0}</system:String>
+    <system:String x:Key="NoPinsDataProvided">No PINS data provided; skipping BOT CSV generation</system:String>
     <system:String x:Key="ProcessingCompletedSuccessfully">Processing completed successfully</system:String>
     <system:String x:Key="ReadyToProcess">Ready to process files. Click one of the buttons to begin.</system:String>
+
+    <!-- Update Messages -->
+    <system:String x:Key="MenuCheckForUpdates">Check for Updates</system:String>
+    <system:String x:Key="CheckingForUpdatesFrom">Checking for updates for {0} v{1} from {2}</system:String>
+    <system:String x:Key="NoNewVersionAvailable">No new version available. Latest: {0}, Current: {1}</system:String>
+    <system:String x:Key="UpdateAvailable">Update available: v{0}</system:String>
+    <system:String x:Key="DownloadingUpdate">Downloading update...</system:String>
+    <system:String x:Key="UpdateFailed">Automatic update failed. Opening release page in browser...</system:String>
+    <system:String x:Key="ErrorInstallingUpdate">Error installing update: {0}</system:String>
+    <system:String x:Key="NoUpdatesAvailable">You are using the latest version.</system:String>
+    <system:String x:Key="ErrorCheckingForUpdates">Error checking for updates: {0}</system:String>
+    <system:String x:Key="ForceUpdateQuestion">Would you like to force an update check to see the latest release page?</system:String>
+    <system:String x:Key="ForcingUpdate">Forcing update check and opening release page...</system:String>
 
 </ResourceDictionary>

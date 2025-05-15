@@ -1,0 +1,68 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:system="clr-namespace:System;assembly=mscorlib">
+
+    <!-- Main Window -->
+    <system:String x:Key="WindowTitle">CSV Generator</system:String>
+    <system:String x:Key="SelectInputFiles">Select Input Files</system:String>
+    <system:String x:Key="SelectOutputDirectory">Select Output Directory</system:String>
+    <system:String x:Key="Generate">Generate</system:String>
+    <system:String x:Key="Clear">Clear</system:String>
+    <system:String x:Key="InputFiles">Input Files</system:String>
+    <system:String x:Key="OutputDirectory">Output Directory</system:String>
+    <system:String x:Key="Language">Language</system:String>
+    <system:String x:Key="English">English</system:String>
+    <system:String x:Key="Romanian">Romanian</system:String>
+
+    <!-- Menu Items -->
+    <system:String x:Key="MenuFile">File</system:String>
+    <system:String x:Key="MenuExit">Exit</system:String>
+    <system:String x:Key="MenuHelp">Help</system:String>
+    <system:String x:Key="MenuAbout">About</system:String>
+    <system:String x:Key="MenuCheckForUpdates">Check for Updates</system:String>
+
+    <!-- Messages -->
+    <system:String x:Key="GenerationComplete">CSV generation complete!</system:String>
+    <system:String x:Key="GenerationFailed">CSV generation failed: {0}</system:String>
+    <system:String x:Key="NoInputFiles">Please select at least one input file.</system:String>
+    <system:String x:Key="NoOutputDirectory">Please select an output directory.</system:String>
+    <system:String x:Key="FileNotFound">File not found: {0}</system:String>
+    <system:String x:Key="DirectoryNotFound">Directory not found: {0}</system:String>
+    <system:String x:Key="InvalidFile">Invalid file: {0}</system:String>
+    <system:String x:Key="ProcessingFile">Processing file: {0}</system:String>
+    <system:String x:Key="FileProcessed">File processed: {0}</system:String>
+    <system:String x:Key="FileSkipped">File skipped: {0}</system:String>
+    <system:String x:Key="FileError">Error processing file: {0}</system:String>
+    <system:String x:Key="OutputFileCreated">Output file created: {0}</system:String>
+    <system:String x:Key="LanguageChanged">Language changed to {0}</system:String>
+
+    <!-- Update Messages -->
+    <system:String x:Key="UpdateAvailable">Update available: v{0}</system:String>
+    <system:String x:Key="NoUpdatesAvailable">No updates available</system:String>
+    <system:String x:Key="UpdateAvailableDetails">A new version of CSVGenerator is available.\n\nVersion: {0}\nCurrent version: {1}\n\nRelease notes:\n{2}\n\nWould you like to update now?</system:String>
+    <system:String x:Key="DownloadingUpdate">Downloading update...</system:String>
+    <system:String x:Key="UpdateFailed">Update failed</system:String>
+    <system:String x:Key="ErrorInstallingUpdate">Error installing update: {0}</system:String>
+    <system:String x:Key="ErrorCheckingForUpdates">Error checking for updates: {0}</system:String>
+    <system:String x:Key="ForceUpdateQuestion">Would you like to force an update?</system:String>
+    <system:String x:Key="ForcingUpdate">Forcing update...</system:String>
+
+    <!-- About Dialog -->
+    <system:String x:Key="AboutTitle">About CSV Generator</system:String>
+    <system:String x:Key="AboutDescription">A utility to generate CSV files from BOM and PINS files.</system:String>
+    <system:String x:Key="AboutVersion">Version: {0}</system:String>
+    <system:String x:Key="AboutCopyright">© 2025 MIT License</system:String>
+    <system:String x:Key="AboutAuthor">Author: Adalbert Alexandru Ungureanu</system:String>
+
+    <!-- Log Window -->
+    <system:String x:Key="LogWindowTitle">Log Window</system:String>
+    <system:String x:Key="ShowLogWindow">Show Log Window</system:String>
+    <system:String x:Key="HideLogWindow">Hide Log Window</system:String>
+    <system:String x:Key="CopyAll">Copy All</system:String>
+    <system:String x:Key="CopySelected">Copy Selected</system:String>
+    <system:String x:Key="ClearLog">Clear Log</system:String>
+    <system:String x:Key="DetachFromMainWindow">Detach from Main Window</system:String>
+    <system:String x:Key="AttachToMainWindow">Attach to Main Window</system:String>
+    <system:String x:Key="ReadyToProcess">Ready to process files. Click one of the buttons to begin.</system:String>
+
+</ResourceDictionary>

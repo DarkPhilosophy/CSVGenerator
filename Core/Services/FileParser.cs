@@ -4,38 +4,34 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 
-#if NET6_0_OR_GREATER
+#if !NET48
 #nullable enable
-#else
-
 #endif
 
-namespace CSVGenerator
+namespace CSVGenerator.Core.Services
 {
     public class FileParser
     {
-#if NET6_0_OR_GREATER
-        private static FileParser? _instance;
-        private Action<string, bool, bool, bool, bool, bool>? _logCallback;
-#else
+#if NET48
         private static FileParser _instance;
         private Action<string, bool, bool, bool, bool, bool> _logCallback;
+#else
+        private static FileParser? _instance;
+        private Action<string, bool, bool, bool, bool, bool>? _logCallback;
 #endif
 
         private FileParser() { }
 
-#if NET6_0_OR_GREATER
-        public void Initialize(Action<string, bool, bool, bool, bool, bool>? logCallback)
-#else
+#if NET48
         public void Initialize(Action<string, bool, bool, bool, bool, bool> logCallback)
+#else
+        public void Initialize(Action<string, bool, bool, bool, bool, bool>? logCallback)
 #endif
         {
             _logCallback = logCallback;
         }
 
-#if NET6_0_OR_GREATER
-        public static FileParser Instance => _instance ??= new FileParser();
-#else
+#if NET48
         public static FileParser Instance
         {
             get
@@ -47,6 +43,8 @@ namespace CSVGenerator
                 return _instance;
             }
         }
+#else
+        public static FileParser Instance => _instance ??= new FileParser();
 #endif
 
         private void Log(string message, bool consoleOnly = true)
@@ -58,10 +56,10 @@ namespace CSVGenerator
             _logCallback?.Invoke($"FileParser: {message}", false, false, false, true, consoleOnly);
         }
 
-#if NET6_0_OR_GREATER
-        public List<BomData> ParseBomFile(string? filePath)
-#else
+#if NET48
         public List<BomData> ParseBomFile(string filePath)
+#else
+        public List<BomData> ParseBomFile(string? filePath)
 #endif
         {
             var result = new List<BomData>();
@@ -286,10 +284,10 @@ namespace CSVGenerator
             return result;
         }
 
-#if NET6_0_OR_GREATER
-        public string DetectUnit(string? filePath)
-#else
+#if NET48
         public string DetectUnit(string filePath)
+#else
+        public string DetectUnit(string? filePath)
 #endif
         {
             try
@@ -297,18 +295,18 @@ namespace CSVGenerator
                 if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
                 {
                     Log($"File not found for unit detection: {filePath ?? "null"}");
-                    return "cm";
+                    return "mm";
                 }
                 using (var reader = new StreamReader(filePath))
                 {
                     string content = reader.ReadToEnd();
-                    return content.IndexOf("inch", StringComparison.OrdinalIgnoreCase) >= 0 ? "inch" : "cm";
+                    return content.IndexOf("inch", StringComparison.OrdinalIgnoreCase) >= 0 ? "inch" : "mm";
                 }
             }
             catch (Exception ex)
             {
                 Log($"Error detecting unit: {ex.Message}");
-                return "cm";
+                return "mm";
             }
         }
     }

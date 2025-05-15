@@ -1,0 +1,21 @@
+<Application x:Class="CSVGenerator.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:CSVGenerator.App"
+             x:ClassModifier="public"
+             StartupUri="pack://application:,,,/CSVGenerator.UI;component/Views/MainWindow.xaml"
+             ShutdownMode="OnMainWindowClose">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- Theme resources -->
+                <ResourceDictionary Source="pack://application:,,,/CSVGenerator.UI;component/Themes/LightTheme.xaml" />
+
+                <!-- Language resources -->
+                <ResourceDictionary>
+                    <!-- Default language resources will be loaded dynamically -->
+                </ResourceDictionary>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

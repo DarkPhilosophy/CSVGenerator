@@ -87,7 +87,21 @@
     <system:String x:Key="WritingBotCsv">Scriere CSV partea de jos: {0} cu {1} linii</system:String>
     <system:String x:Key="GeneratedBotSideCSV">CSV partea de jos generat: {0} cu {1} linii</system:String>
     <system:String x:Key="NoBotCsvLines">Nu există linii CSV pentru partea de jos {0}</system:String>
+    <system:String x:Key="NoPinsDataProvided">Nu există date PINS furnizate; se omite generarea CSV pentru partea de jos</system:String>
     <system:String x:Key="ProcessingCompletedSuccessfully">Procesare finalizată cu succes</system:String>
     <system:String x:Key="ReadyToProcess">Gata pentru procesarea fișierelor. Faceți clic pe unul dintre butoane pentru a începe.</system:String>
+
+    <!-- Update Messages -->
+    <system:String x:Key="MenuCheckForUpdates">Verifică actualizări</system:String>
+    <system:String x:Key="CheckingForUpdatesFrom">Se verifică actualizările pentru {0} v{1} de la {2}</system:String>
+    <system:String x:Key="NoNewVersionAvailable">Nu există versiune nouă disponibilă. Cea mai recentă: {0}, Curentă: {1}</system:String>
+    <system:String x:Key="UpdateAvailable">Actualizare disponibilă: v{0}</system:String>
+    <system:String x:Key="DownloadingUpdate">Se descarcă actualizarea...</system:String>
+    <system:String x:Key="UpdateFailed">Actualizarea automată a eșuat. Se deschide pagina de lansare în browser...</system:String>
+    <system:String x:Key="ErrorInstallingUpdate">Eroare la instalarea actualizării: {0}</system:String>
+    <system:String x:Key="NoUpdatesAvailable">Folosiți cea mai recentă versiune.</system:String>
+    <system:String x:Key="ErrorCheckingForUpdates">Eroare la verificarea actualizărilor: {0}</system:String>
+    <system:String x:Key="ForceUpdateQuestion">Doriți să forțați o verificare a actualizărilor pentru a vedea pagina celei mai recente versiuni?</system:String>
+    <system:String x:Key="ForcingUpdate">Se forțează verificarea actualizărilor și se deschide pagina de lansare...</system:String>
 
 </ResourceDictionary>

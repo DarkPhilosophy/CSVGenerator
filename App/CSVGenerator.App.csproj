@@ -1,0 +1,96 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net48;net5.0-windows;net6.0-windows;net7.0-windows;net8.0-windows;net9.0-windows;net10.0-windows</TargetFrameworks>
+    <UseWPF>true</UseWPF>
+    <Version>1.0.1.0</Version>
+    <Authors>Adalbert Alexandru Ungureanu</Authors>
+    <Company>Flex</Company>
+    <Product>CSVGenerator</Product>
+    <Description>Application components for the CSVGenerator</Description>
+    <Copyright>© 2025 MIT License</Copyright>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <DebugType>none</DebugType>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <OutputType>WinExe</OutputType>
+    <StartupObject>CSVGenerator.App.App</StartupObject>
+    <RuntimeIdentifiers>win-x64;win-x86</RuntimeIdentifiers>
+    <!-- Suppress CA1416 warnings for Windows-specific APIs -->
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+  </PropertyGroup>
+
+  <!-- Properties for .NET Core/.NET 5+ -->
+  <PropertyGroup Condition="'$(TargetFramework)' != 'net48'">
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <SuppressTfmSupportBuildWarnings>true</SuppressTfmSupportBuildWarnings>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+    <PublishTrimmed>false</PublishTrimmed>
+    <PublishReadyToRun>false</PublishReadyToRun>
+    <EnableControlFlowGuard>false</EnableControlFlowGuard>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
+  <!-- Properties for .NET Framework 4.8 -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net48'">
+    <Nullable>disable</Nullable>
+    <LangVersion>7.3</LangVersion>
+    <DefineConstants>NET48</DefineConstants>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <ImplicitUsings>disable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Core\CSVGenerator.Core.csproj" />
+    <ProjectReference Include="..\UI\CSVGenerator.UI.csproj" />
+    <ProjectReference Include="..\..\Common\Common.csproj" />
+  </ItemGroup>
+
+  <!-- Framework-specific package references -->
+    <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+        <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+        <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.4" />
+        <PackageReference Include="System.Net.Http" Version="4.3.4" />
+        <PackageReference Include="System.Text.RegularExpressions" Version="4.3.1" />
+        <PackageReference Include="System.Text.Json" Version="9.0.4" />
+        <PackageReference Include="Costura.Fody" Version="6.0.0" PrivateAssets="all" />
+        <PackageReference Include="Fody" Version="6.9.2" PrivateAssets="all" />
+    </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Sounds\" />
+    <Folder Include="Languages\" />
+    <Folder Include="Images\" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <EnableDefaultPageItems>false</EnableDefaultPageItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Languages\English.xaml">
+      <LogicalName>CSVGenerator.g.resources.app.languages.english.xaml</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Languages\Romanian.xaml">
+      <LogicalName>CSVGenerator.g.resources.app.languages.romanian.xaml</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Sounds\ui-minimal-click.wav">
+      <LogicalName>CSVGenerator.g.resources.app.sounds.ui-minimal-click.wav</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Images\playlist.png" />
+    <Resource Include="Images\romania.png" />
+    <Resource Include="Images\united-states.png" />
+    <Resource Include="Images\upload-file.png" />
+  </ItemGroup>
+
+</Project>

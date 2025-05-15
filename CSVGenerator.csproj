@@ -1,0 +1,191 @@
+<!--
+For .NET Framework 4.8 (framework-dependent):
+dotnet publish CSVGenerator\CSVGenerator.csproj -r win-x64 -f net10.0-windows -c Release -o Release\net48
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net48;net5.0-windows;net6.0-windows;net7.0-windows;net8.0-windows;net9.0-windows;net10.0-windows</TargetFrameworks>
+    <UseWPF>true</UseWPF>
+    <ApplicationIcon>..\app.ico</ApplicationIcon>
+    <Version>1.0.1.0</Version>
+    <Authors>Adalbert Alexandru Ungureanu</Authors>
+    <Company>Flex</Company>
+    <Product>CSVGenerator</Product>
+    <Description>A utility to generate CSV files from BOM and PINS files</Description>
+    <Copyright>© 2025 MIT License</Copyright>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <DebugType>none</DebugType>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <OutputType>WinExe</OutputType>
+    <StartupObject>CSVGenerator.App.App</StartupObject>
+    <RuntimeIdentifiers>win-x64;win-x86</RuntimeIdentifiers>
+    <!-- Suppress warnings -->
+    <NoWarn>$(NoWarn);CA1416;NETSDK1138</NoWarn>
+  </PropertyGroup>
+
+  <!-- Properties for all .NET Core/.NET 5+ -->
+  <PropertyGroup Condition="'$(TargetFramework)' != 'net48'">
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <SuppressTfmSupportBuildWarnings>true</SuppressTfmSupportBuildWarnings>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+    <PublishTrimmed>false</PublishTrimmed>
+    <PublishReadyToRun>false</PublishReadyToRun>
+    <EnableControlFlowGuard>false</EnableControlFlowGuard>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
+  <!-- Properties for .NET Framework 4.8 -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net48'">
+    <Nullable>disable</Nullable>
+    <LangVersion>7.3</LangVersion>
+    <DefineConstants>NET48</DefineConstants>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <ImplicitUsings>disable</ImplicitUsings>
+  </PropertyGroup>
+
+  <!-- Prevent copying system DLLs for .NET 4.8 -->
+  <Target Name="RemoveSystemDllsFromOutput" AfterTargets="ResolveAssemblyReferences" Condition="'$(TargetFramework)' == 'net48'">
+    <ItemGroup>
+      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)" Condition="
+        '%(Filename)' == 'Common' Or
+        '%(Filename)' == 'Newtonsoft.Json' Or
+        '%(Filename)' == 'System.Buffers' Or
+        '%(Filename)' == 'System.Memory' Or
+        '%(Filename)' == 'System.Numerics.Vectors' Or
+        '%(Filename)' == 'System.Runtime.CompilerServices.Unsafe' Or
+        '%(Filename)' == 'System.Text.Encodings.Web' Or
+        '%(Filename)' == 'System.Text.Json' Or
+        '%(Filename)' == 'System.Threading.Tasks.Extensions' Or
+        '%(Filename)' == 'System.ValueTuple' Or
+        '%(Filename)' == 'Microsoft.Bcl.AsyncInterfaces' Or
+        '%(Filename)' == 'Microsoft.Extensions.Configuration' Or
+        '%(Filename)' == 'Microsoft.Extensions.Configuration.Abstractions' Or
+        '%(Filename)' == 'Microsoft.Extensions.Configuration.FileExtensions' Or
+        '%(Filename)' == 'Microsoft.Extensions.Configuration.Json' Or
+        '%(Filename)' == 'Microsoft.Extensions.FileProviders.Abstractions' Or
+        '%(Filename)' == 'Microsoft.Extensions.FileProviders.Physical' Or
+        '%(Filename)' == 'Microsoft.Extensions.FileSystemGlobbing' Or
+        '%(Filename)' == 'Microsoft.Extensions.Primitives'" />
+    </ItemGroup>
+  </Target>
+
+  <!-- Clean up DLLs after publish for .NET 4.8 -->
+  <Target Name="CleanupPublishDirectory" AfterTargets="Publish" Condition="'$(TargetFramework)' == 'net48'">
+    <ItemGroup>
+      <FilesToDelete Include="$(PublishDir)\Common.dll;
+                           $(PublishDir)\Newtonsoft.Json.dll;
+                           $(PublishDir)\System.Buffers.dll;
+                           $(PublishDir)\System.Memory.dll;
+                           $(PublishDir)\System.Numerics.Vectors.dll;
+                           $(PublishDir)\System.Runtime.CompilerServices.Unsafe.dll;
+                           $(PublishDir)\System.Text.Encodings.Web.dll;
+                           $(PublishDir)\System.Text.Json.dll;
+                           $(PublishDir)\System.Threading.Tasks.Extensions.dll;
+                           $(PublishDir)\System.ValueTuple.dll;
+                           $(PublishDir)\System.IO.Pipelines.dll;
+                           $(PublishDir)\Microsoft.Bcl.AsyncInterfaces.dll;
+                           $(PublishDir)\Microsoft.Extensions.Configuration.dll;
+                           $(PublishDir)\Microsoft.Extensions.Configuration.Abstractions.dll;
+                           $(PublishDir)\Microsoft.Extensions.Configuration.FileExtensions.dll;
+                           $(PublishDir)\Microsoft.Extensions.Configuration.Json.dll;
+                           $(PublishDir)\Microsoft.Extensions.FileProviders.Abstractions.dll;
+                           $(PublishDir)\Microsoft.Extensions.FileProviders.Physical.dll;
+                           $(PublishDir)\Microsoft.Extensions.FileSystemGlobbing.dll;
+                           $(PublishDir)\Microsoft.Extensions.Primitives.dll" />
+    </ItemGroup>
+    <Delete Files="@(FilesToDelete)" />
+  </Target>
+
+  <!-- Clean up PDB files for .NET 5+ -->
+  <Target Name="CleanupPdbFiles" AfterTargets="Publish" Condition="'$(TargetFramework)' != 'net48'">
+    <Delete Files="$(PublishDir)\*.pdb" />
+  </Target>
+
+  <!-- Framework-specific package references -->
+    <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+        <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+        <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.4" />
+        <PackageReference Include="System.Net.Http" Version="4.3.4" />
+        <PackageReference Include="System.Text.RegularExpressions" Version="4.3.1" />
+        <PackageReference Include="System.Text.Json" Version="9.0.4" />
+        <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
+        <PackageReference Include="Costura.Fody" Version="6.0.0" PrivateAssets="all" />
+        <PackageReference Include="Fody" Version="6.9.2" PrivateAssets="all" />
+    </ItemGroup>
+
+  <!-- Costura.Fody configuration -->
+  <ItemGroup>
+    <Content Include="FodyWeavers.xml" CopyToOutputDirectory="Never" />
+  </ItemGroup>
+
+  <!-- Resources -->
+  <ItemGroup>
+    <Resource Include="..\app.ico" />
+    <None Update="settings.json" CopyToOutputDirectory="PreserveNewest">
+      <ExcludeFromSingleFile Condition="'$(TargetFramework)' != 'net48'">true</ExcludeFromSingleFile>
+    </None>
+  </ItemGroup>
+
+  <!-- Sound Resources -->
+  <ItemGroup>
+    <EmbeddedResource Include="App\Sounds\ui-minimal-click.wav">
+      <LogicalName>CSVGenerator.g.resources.app.sounds.ui-minimal-click.wav</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <!-- Image Resources -->
+  <ItemGroup>
+    <EmbeddedResource Include="App\Images\romania.png">
+      <LogicalName>CSVGenerator.g.resources.app.images.romania.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="App\Images\united-states.png">
+      <LogicalName>CSVGenerator.g.resources.app.images.united-states.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="App\Images\playlist.png">
+      <LogicalName>CSVGenerator.g.resources.app.images.playlist.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="App\Images\upload-file.png">
+      <LogicalName>CSVGenerator.g.resources.app.images.upload-file.png</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <!-- Language Resources -->
+  <ItemGroup>
+    <EmbeddedResource Include="App\Languages\English.xaml">
+      <LogicalName>CSVGenerator.g.resources.app.languages.english.xaml</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="App\Languages\Romanian.xaml">
+      <LogicalName>CSVGenerator.g.resources.app.languages.romanian.xaml</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <!-- Main application files -->
+  <ItemGroup>
+    <Compile Remove="**\*.cs" />
+    <Compile Include="App\**\*.cs" />
+    <Page Remove="**\*.xaml" />
+    <Page Include="App\**\*.xaml" />
+    <ApplicationDefinition Remove="App.xaml" />
+    <ApplicationDefinition Include="App\App.xaml" />
+  </ItemGroup>
+
+  <!-- Project references -->
+  <ItemGroup>
+    <ProjectReference Include="..\Common\Common.csproj" />
+    <ProjectReference Include="Core\CSVGenerator.Core.csproj" />
+    <ProjectReference Include="UI\CSVGenerator.UI.csproj" />
+  </ItemGroup>
+
+  <!-- Exclude Tests folder -->
+  <ItemGroup>
+    <Compile Remove="Tests\**" />
+    <EmbeddedResource Remove="Tests\**" />
+    <None Remove="Tests\**" />
+    <Page Remove="Tests\**" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,61 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net48;net5.0-windows;net6.0-windows;net7.0-windows;net8.0-windows;net9.0-windows;net10.0-windows</TargetFrameworks>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Version>1.0.1.0</Version>
+    <Authors>Adalbert Alexandru Ungureanu</Authors>
+    <Company>Flex</Company>
+    <Product>CSVGenerator</Product>
+    <Description>UI components for the CSVGenerator</Description>
+    <Copyright>© 2025 MIT License</Copyright>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <DebugType>none</DebugType>
+    <RuntimeIdentifiers>win-x64;win-x86</RuntimeIdentifiers>
+    <!-- Suppress CA1416 warnings for Windows-specific APIs -->
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+  </PropertyGroup>
+
+  <!-- Properties for .NET Core/.NET 5+ -->
+  <PropertyGroup Condition="'$(TargetFramework)' != 'net48'">
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <SuppressTfmSupportBuildWarnings>true</SuppressTfmSupportBuildWarnings>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+    <PublishTrimmed>false</PublishTrimmed>
+    <PublishReadyToRun>false</PublishReadyToRun>
+    <EnableControlFlowGuard>false</EnableControlFlowGuard>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
+  <!-- Properties for .NET Framework 4.8 -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net48'">
+    <Nullable>disable</Nullable>
+    <LangVersion>7.3</LangVersion>
+    <DefineConstants>NET48</DefineConstants>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <ImplicitUsings>disable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Core\CSVGenerator.Core.csproj" />
+    <ProjectReference Include="..\..\Common\Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="ViewModels\" />
+    <Folder Include="Animations\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="..\App\Images\playlist.png" />
+    <Resource Include="..\App\Images\romania.png" />
+    <Resource Include="..\App\Images\united-states.png" />
+    <Resource Include="..\App\Images\upload-file.png" />
+  </ItemGroup>
+
+</Project>

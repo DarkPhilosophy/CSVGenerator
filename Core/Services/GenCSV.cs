@@ -4,27 +4,23 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 
-#if NET6_0_OR_GREATER
+#if !NET48
 #nullable enable
-#else
-
 #endif
 
-namespace CSVGenerator
+namespace CSVGenerator.Core.Services
 {
     public class GenCSV
     {
-#if NET6_0_OR_GREATER
-        private static GenCSV? _instance;
-#else
+#if NET48
         private static GenCSV _instance;
+#else
+        private static GenCSV? _instance;
 #endif
 
         private GenCSV() { }
 
-#if NET6_0_OR_GREATER
-        public static GenCSV Instance => _instance ??= new GenCSV();
-#else
+#if NET48
         public static GenCSV Instance
         {
             get
@@ -36,19 +32,11 @@ namespace CSVGenerator
                 return _instance;
             }
         }
+#else
+        public static GenCSV Instance => _instance ??= new GenCSV();
 #endif
 
-#if NET6_0_OR_GREATER
-        public Dictionary<string, bool> GenerateCSVFiles(
-            List<BomData>? bomData,
-            List<PinsData>? pinsData,
-            string? client,
-            string? partnumber,
-            double bomFactor,
-            double pinsFactor,
-            Action<int, string>? progressCallback,
-            Action<string, bool, bool, bool, bool, bool>? logCallback = null)
-#else
+#if NET48
         public Dictionary<string, bool> GenerateCSVFiles(
             List<BomData> bomData,
             List<PinsData> pinsData,
@@ -58,6 +46,16 @@ namespace CSVGenerator
             double pinsFactor,
             Action<int, string> progressCallback,
             Action<string, bool, bool, bool, bool, bool> logCallback = null)
+#else
+        public Dictionary<string, bool> GenerateCSVFiles(
+            List<BomData>? bomData,
+            List<PinsData>? pinsData,
+            string? client,
+            string? partnumber,
+            double bomFactor,
+            double pinsFactor,
+            Action<int, string>? progressCallback,
+            Action<string, bool, bool, bool, bool, bool>? logCallback = null)
 #endif
         {
             var result = new Dictionary<string, bool> { { "top", false }, { "bot", false } };
@@ -78,10 +76,10 @@ namespace CSVGenerator
                     return result;
                 }
 
-#if NET6_0_OR_GREATER
-                client ??= "UNKNOWN_CLIENT";
-#else
+#if NET48
                 client = client ?? "UNKNOWN_CLIENT";
+#else
+                client ??= "UNKNOWN_CLIENT";
 #endif
 
                 // Generate TOP-side CSV
@@ -162,12 +160,12 @@ namespace CSVGenerator
                     logCallback?.Invoke(botSideMsg, false, true, false, false, false);
                     var botLines = new Dictionary<string, List<string>> { { "T", new List<string>() }, { "B", new List<string>() } };
 
-#if NET6_0_OR_GREATER
-                    var pinLookup = pinsData.Where(p => p != null && p.Part != null)
-                                            .ToDictionary(p => p!.Part!, p => p, StringComparer.OrdinalIgnoreCase);
-#else
+#if NET48
                     var pinLookup = pinsData.Where(p => p != null && p.Part != null)
                                             .ToDictionary(p => p.Part, p => p, StringComparer.OrdinalIgnoreCase);
+#else
+                    var pinLookup = pinsData.Where(p => p != null && p.Part != null)
+                                            .ToDictionary(p => p!.Part!, p => p, StringComparer.OrdinalIgnoreCase);
 #endif
 
                     int matchCount = 0;
@@ -188,10 +186,10 @@ namespace CSVGenerator
 
                         // Normalize Type for comparison
                         string bomType = bomEntry.Type.ToUpper();
-#if NET6_0_OR_GREATER
-                        string? pinsType = pins.Type?.ToUpper();
-#else
+#if NET48
                         string pinsType = pins.Type != null ? pins.Type.ToUpper() : null;
+#else
+                        string? pinsType = pins.Type?.ToUpper();
 #endif
                         if (bomType != pinsType)
                         {
@@ -271,7 +269,8 @@ namespace CSVGenerator
                 }
                 else
                 {
-                    logCallback?.Invoke("No PINS data provided; skipping BOT CSV generation", false, true, false, false, false);
+                    string noPinsDataMsg = System.Windows.Application.Current.FindResource("NoPinsDataProvided")?.ToString() ?? "No PINS data provided; skipping BOT CSV generation";
+                    logCallback?.Invoke(noPinsDataMsg, false, true, false, false, false);
                 }
 
                 if (result["top"] || result["bot"])

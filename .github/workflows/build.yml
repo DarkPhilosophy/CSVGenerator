@@ -7,7 +7,6 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-# Add permissions needed for creating releases
 permissions:
   contents: write
   packages: write
@@ -23,7 +22,7 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0  # Fetch all history for proper versioning
+        fetch-depth: 0
 
     - name: Checkout Common library
       uses: actions/checkout@v4
@@ -64,13 +63,13 @@ jobs:
 
     - name: Restore NuGet packages
       run: |
-        dotnet restore CSVGenerator.sln --configfile nuget.config
+        dotnet restore CSVGenerator.csproj --configfile nuget.config
       env:
         NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
 
-    - name: Build solution
+    - name: Build project
       run: |
-        msbuild CSVGenerator.sln `
+        msbuild CSVGenerator.csproj `
           /p:Configuration=Release `
           /p:Platform="Any CPU" `
           /p:TargetFramework=net48 `
@@ -82,70 +81,40 @@ jobs:
     - name: Copy build outputs and generate metadata
       id: build-info
       run: |
-        # Create output directory
         $outputDir = "output"
         New-Item -ItemType Directory -Path $outputDir -Force
-        
-        # Find the executable files
         $exeFiles = Get-ChildItem -Path . -Include *.exe -Recurse -Exclude "*\Common\*","*\packages\*","*\obj\*"
-        
         if ($exeFiles) {
-          # Copy all executables found
           $exeFiles | ForEach-Object {
             Copy-Item -Path $_.FullName -Destination $outputDir -Force
             Write-Output "Copied: $($_.FullName) to $outputDir"
-            
-            # Get file version info
             $exeName = $_.Name
             $versionInfo = (Get-Item "$outputDir\$exeName").VersionInfo
             $fileVersion = $versionInfo.FileVersion
-            $productVersion = $versionInfo.ProductVersion
-            
-            # Calculate SHA256 hash
             $sha256 = Get-FileHash -Path "$outputDir\$exeName" -Algorithm SHA256 | Select-Object -ExpandProperty Hash
-            
-            # Get build timestamp
             $buildTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-            
-            # Get commit info
             $commitHash = git rev-parse HEAD
             $commitMessage = git log -1 --pretty=%B
-            
-            # Create release folder structure
             $releaseDir = "Release"
             $versionDir = "$releaseDir\CSVGenerator-net48-fd-$fileVersion"
             New-Item -ItemType Directory -Path $versionDir -Force
-            
-            # Copy executable to release directory
             Copy-Item -Path "$outputDir\$exeName" -Destination $versionDir -Force
-            
-            # Create metadata file with string concatenation instead of here-string
-            $metadataContent = "Product: CSVGenerator" + [Environment]::NewLine
-            $metadataContent += "File: $exeName" + [Environment]::NewLine
-            $metadataContent += "Version: $fileVersion" + [Environment]::NewLine
-            $metadataContent += "Build Time: $buildTime" + [Environment]::NewLine
-            $metadataContent += "Commit: $commitHash" + [Environment]::NewLine
-            $metadataContent += "Commit Message: $commitMessage" + [Environment]::NewLine
+            $metadataContent = "Product: CSVGenerator`n"
+            $metadataContent += "File: $exeName`n"
+            $metadataContent += "Version: $fileVersion`n"
+            $metadataContent += "Build Time: $buildTime`n"
+            $metadataContent += "Commit: $commitHash`n"
+            $metadataContent += "Commit Message: $commitMessage`n"
             $metadataContent += "SHA256: $sha256"
-            
             Set-Content -Path "$versionDir\$exeName.metadata.txt" -Value $metadataContent
-            
-            # Also create a metadata file in the output directory for artifact upload
             Set-Content -Path "$outputDir\$exeName.metadata.txt" -Value $metadataContent
-            
-            # Create a release notes file
-            $releaseNotes = "# CSVGenerator $fileVersion" + [Environment]::NewLine
-            $releaseNotes += "Build Date: $buildTime" + [Environment]::NewLine
-            $releaseNotes += "SHA256: $sha256" + [Environment]::NewLine
-            $releaseNotes += [Environment]::NewLine
-            $releaseNotes += "## Changes" + [Environment]::NewLine
-            $releaseNotes += "- $commitMessage"
-            
-            Set-Content -Path "$outputDir\release-notes.md" -Value $releaseNotes
-            
-            # Set output variables for the GitHub release step
+            $releaseNotes = "# CSVGenerator $fileVersion`n`n"
+            $releaseNotes += "Build Date: $buildTime`n`n"
+            $releaseNotes += "SHA256: $sha256`n`n"
+            $releaseNotes += "## Changes`n`n"
+            $releaseNotes += "- $commitMessage`n"
+            [System.IO.File]::WriteAllText("$outputDir\release-notes.md", $releaseNotes, [System.Text.Encoding]::UTF8)
             "version=$fileVersion" >> $env:GITHUB_OUTPUT
-            
             Write-Output "Release package created at: $versionDir"
             Write-Output "SHA256: $sha256"
           }
@@ -161,7 +130,7 @@ jobs:
         path: output/*.exe
         if-no-files-found: error
         retention-days: 30
-        
+
     - name: Upload metadata
       uses: actions/upload-artifact@v4
       with:
@@ -169,7 +138,7 @@ jobs:
         path: output/*.metadata.txt
         if-no-files-found: error
         retention-days: 30
-        
+
     - name: Create GitHub Release
       if: github.event_name != 'pull_request'
       uses: softprops/action-gh-release@v1

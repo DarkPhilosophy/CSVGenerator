@@ -1,0 +1,68 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:system="clr-namespace:System;assembly=mscorlib">
+
+    <!-- Main Window -->
+    <system:String x:Key="WindowTitle">Generator CSV</system:String>
+    <system:String x:Key="SelectInputFiles">Selectează Fișiere de Intrare</system:String>
+    <system:String x:Key="SelectOutputDirectory">Selectează Directorul de Ieșire</system:String>
+    <system:String x:Key="Generate">Generează</system:String>
+    <system:String x:Key="Clear">Șterge</system:String>
+    <system:String x:Key="InputFiles">Fișiere de Intrare</system:String>
+    <system:String x:Key="OutputDirectory">Director de Ieșire</system:String>
+    <system:String x:Key="Language">Limbă</system:String>
+    <system:String x:Key="English">Engleză</system:String>
+    <system:String x:Key="Romanian">Română</system:String>
+
+    <!-- Menu Items -->
+    <system:String x:Key="MenuFile">Fișier</system:String>
+    <system:String x:Key="MenuExit">Ieșire</system:String>
+    <system:String x:Key="MenuHelp">Ajutor</system:String>
+    <system:String x:Key="MenuAbout">Despre</system:String>
+    <system:String x:Key="MenuCheckForUpdates">Verifică Actualizări</system:String>
+
+    <!-- Messages -->
+    <system:String x:Key="GenerationComplete">Generare CSV completă!</system:String>
+    <system:String x:Key="GenerationFailed">Generare CSV eșuată: {0}</system:String>
+    <system:String x:Key="NoInputFiles">Vă rugăm să selectați cel puțin un fișier de intrare.</system:String>
+    <system:String x:Key="NoOutputDirectory">Vă rugăm să selectați un director de ieșire.</system:String>
+    <system:String x:Key="FileNotFound">Fișier negăsit: {0}</system:String>
+    <system:String x:Key="DirectoryNotFound">Director negăsit: {0}</system:String>
+    <system:String x:Key="InvalidFile">Fișier invalid: {0}</system:String>
+    <system:String x:Key="ProcessingFile">Procesare fișier: {0}</system:String>
+    <system:String x:Key="FileProcessed">Fișier procesat: {0}</system:String>
+    <system:String x:Key="FileSkipped">Fișier omis: {0}</system:String>
+    <system:String x:Key="FileError">Eroare la procesarea fișierului: {0}</system:String>
+    <system:String x:Key="OutputFileCreated">Fișier de ieșire creat: {0}</system:String>
+    <system:String x:Key="LanguageChanged">Limba a fost schimbată în {0}</system:String>
+
+    <!-- Update Messages -->
+    <system:String x:Key="UpdateAvailable">Actualizare disponibilă: v{0}</system:String>
+    <system:String x:Key="NoUpdatesAvailable">Nu există actualizări disponibile</system:String>
+    <system:String x:Key="UpdateAvailableDetails">O nouă versiune a Generator CSV este disponibilă.\n\nVersiune: {0}\nVersiune curentă: {1}\n\nNote de lansare:\n{2}\n\nDoriți să actualizați acum?</system:String>
+    <system:String x:Key="DownloadingUpdate">Se descarcă actualizarea...</system:String>
+    <system:String x:Key="UpdateFailed">Actualizare eșuată</system:String>
+    <system:String x:Key="ErrorInstallingUpdate">Eroare la instalarea actualizării: {0}</system:String>
+    <system:String x:Key="ErrorCheckingForUpdates">Eroare la verificarea actualizărilor: {0}</system:String>
+    <system:String x:Key="ForceUpdateQuestion">Doriți să forțați o actualizare?</system:String>
+    <system:String x:Key="ForcingUpdate">Se forțează actualizarea...</system:String>
+
+    <!-- About Dialog -->
+    <system:String x:Key="AboutTitle">Despre Generator CSV</system:String>
+    <system:String x:Key="AboutDescription">Un utilitar pentru generarea fișierelor CSV din fișiere BOM și PINS.</system:String>
+    <system:String x:Key="AboutVersion">Versiune: {0}</system:String>
+    <system:String x:Key="AboutCopyright">© 2025 Licență MIT</system:String>
+    <system:String x:Key="AboutAuthor">Autor: Adalbert Alexandru Ungureanu</system:String>
+
+    <!-- Log Window -->
+    <system:String x:Key="LogWindowTitle">Fereastră Jurnal</system:String>
+    <system:String x:Key="ShowLogWindow">Arată Fereastra Jurnal</system:String>
+    <system:String x:Key="HideLogWindow">Ascunde Fereastra Jurnal</system:String>
+    <system:String x:Key="CopyAll">Copiază Tot</system:String>
+    <system:String x:Key="CopySelected">Copiază Selecția</system:String>
+    <system:String x:Key="ClearLog">Șterge Jurnalul</system:String>
+    <system:String x:Key="DetachFromMainWindow">Detașează de Fereastra Principală</system:String>
+    <system:String x:Key="AttachToMainWindow">Atașează la Fereastra Principală</system:String>
+    <system:String x:Key="ReadyToProcess">Gata pentru procesarea fișierelor. Faceți clic pe unul dintre butoane pentru a începe.</system:String>
+
+</ResourceDictionary>
