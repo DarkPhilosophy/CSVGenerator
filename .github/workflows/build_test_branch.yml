@@ -22,12 +22,13 @@ jobs:
         path: Common
         ref: test
         
-    - name: Setup MSBuild
-      uses: microsoft/setup-msbuild@v2
-      
-    - name: Setup NuGet
-      uses: nuget/setup-nuget@v2
-      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: |
+          6.0.x
+          8.0.x
+          
     - name: Install .NET Framework 4.8 Developer Pack
       run: |
         choco install netfx-4.8-devpack -y
@@ -42,30 +43,14 @@ jobs:
         Get-ChildItem -Path . -Include *.csproj -Recurse | Select-Object FullName
       shell: pwsh
       
-    - name: Update target frameworks in project files
+    - name: Build with dotnet publish
       run: |
-        Get-ChildItem -Path . -Include *.csproj -Recurse | ForEach-Object {
-          $content = Get-Content $_.FullName -Raw
-          $updatedContent = $content -replace '<TargetFrameworks>net48;net5.0-windows;net7.0-windows;net10.0-windows</TargetFrameworks>', '<TargetFrameworks>net48</TargetFrameworks>'
-          $updatedContent = $updatedContent -replace '<TargetFramework>net10.0-windows</TargetFramework>', '<TargetFramework>net48</TargetFramework>'
-          Set-Content -Path $_.FullName -Value $updatedContent
-          Write-Output "Updated target framework in $($_.FullName)"
-        }
-      shell: pwsh
-      
-    - name: Restore NuGet packages
-      run: |
-        nuget restore CSVGenerator.csproj
-      shell: pwsh
-      
-    - name: Build
-      run: |
-        msbuild CSVGenerator.csproj /p:Configuration=Release /p:Platform="Any CPU" /verbosity:detailed
+        dotnet publish CSVGenerator.csproj -r win-x64 -f net48 -c Release -o Release\net48
       shell: pwsh
       
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
         name: CSVGenerator-net48
-        path: bin/Release/net48
+        path: Release\net48
         if-no-files-found: warn
