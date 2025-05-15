@@ -49,13 +49,13 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/.nuget/packages
-        key: ${{ runner.os }}-nuget-${{ hashFiles(''**/packages.config'', ''**/*.csproj'') }}
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.config', '**/*.csproj') }}
         restore-keys: |
           ${{ runner.os }}-nuget-
 
     - name: Install .NET Framework Developer Pack
       run: choco install netfx-4.8-devpack -y
-      if: steps.cache.outputs.cache-hit != ''true''
+      if: steps.cache.outputs.cache-hit != 'true'
 
     - name: List directory structure
       run: |
