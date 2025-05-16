@@ -47,9 +47,18 @@ jobs:
         Get-ChildItem -Path . -Include *.csproj -Recurse | Select-Object FullName
       shell: pwsh
       
-    - name: Update target frameworks in project files
+    - name: Update target frameworks in all project files
       run: |
+        # Update CSVGenerator project files
         Get-ChildItem -Path CSVGenerator -Include *.csproj -Recurse | ForEach-Object {
+          $content = Get-Content $_.FullName -Raw
+          $updatedContent = $content -replace 'net10.0-windows', 'net9.0-windows'
+          Set-Content -Path $_.FullName -Value $updatedContent
+          Write-Output "Updated target framework in $($_.FullName) from net10.0-windows to net9.0-windows"
+        }
+        
+        # Update Common project files
+        Get-ChildItem -Path Common -Include *.csproj -Recurse | ForEach-Object {
           $content = Get-Content $_.FullName -Raw
           $updatedContent = $content -replace 'net10.0-windows', 'net9.0-windows'
           Set-Content -Path $_.FullName -Value $updatedContent
