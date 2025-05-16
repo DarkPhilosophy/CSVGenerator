@@ -1,10 +1,10 @@
 <!--
 For .NET Framework 4.8 (framework-dependent):
-dotnet publish CSVGenerator\CSVGenerator.csproj -r win-x64 -f net10.0-windows -c Release -o Release\net48
+dotnet publish CSVGenerator\CSVGenerator.csproj -r win-x64 -f net9.0-windows -c Release -o Release\net48
 -->
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net48;net5.0-windows;net6.0-windows;net7.0-windows;net8.0-windows;net9.0-windows;net10.0-windows</TargetFrameworks>
+    <TargetFrameworks>net48;net5.0-windows;net6.0-windows;net7.0-windows;net8.0-windows;net9.0-windows;net9.0-windows</TargetFrameworks>
     <UseWPF>true</UseWPF>
     <ApplicationIcon>..\app.ico</ApplicationIcon>
     <Version>1.0.1.0</Version>
@@ -189,3 +189,5 @@ dotnet publish CSVGenerator\CSVGenerator.csproj -r win-x64 -f net10.0-windows -c
     <Page Remove="Tests\**" />
   </ItemGroup>
 </Project>
+
+
