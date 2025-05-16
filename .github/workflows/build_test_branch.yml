@@ -14,6 +14,8 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        ref: test
       
     - name: Checkout Common library
       uses: actions/checkout@v4
@@ -28,6 +30,7 @@ jobs:
         dotnet-version: |
           6.0.x
           8.0.x
+          9.0.x
           
     - name: Install .NET Framework 4.8 Developer Pack
       run: |
@@ -41,6 +44,16 @@ jobs:
         Get-ChildItem -Path . -Recurse -Depth 2 | Select-Object FullName
         Write-Output "Project files:"
         Get-ChildItem -Path . -Include *.csproj -Recurse | Select-Object FullName
+      shell: pwsh
+      
+    - name: Update target frameworks in project files
+      run: |
+        Get-ChildItem -Path . -Include *.csproj -Recurse | ForEach-Object {
+          $content = Get-Content $_.FullName -Raw
+          $updatedContent = $content -replace 'net10.0-windows', 'net9.0-windows'
+          Set-Content -Path $_.FullName -Value $updatedContent
+          Write-Output "Updated target framework in $($_.FullName) from net10.0-windows to net9.0-windows"
+        }
       shell: pwsh
       
     - name: Build with dotnet publish
