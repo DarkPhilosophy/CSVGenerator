@@ -12,17 +12,17 @@ jobs:
     runs-on: windows-latest
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        ref: test
-        path: CSVGenerator
-      
     - name: Checkout Common library
       uses: actions/checkout@v4
       with:
         repository: DarkPhilosophy/Common
         path: Common
+        ref: test
+        
+    - name: Checkout CSVGenerator
+      uses: actions/checkout@v4
+      with:
+        path: CSVGenerator
         ref: test
         
     - name: Setup .NET
@@ -66,7 +66,23 @@ jobs:
         }
       shell: pwsh
       
-    - name: Build with dotnet publish
+    - name: Display Common project content
+      run: |
+        if (Test-Path -Path "Common\Common.csproj") {
+          Write-Output "Common.csproj content:"
+          Get-Content -Path "Common\Common.csproj"
+        } else {
+          Write-Output "Common.csproj not found!"
+        }
+      shell: pwsh
+      
+    - name: Build Common library first
+      run: |
+        cd Common
+        dotnet build -c Release -f net48
+      shell: pwsh
+      
+    - name: Build CSVGenerator
       run: |
         cd CSVGenerator
         dotnet publish CSVGenerator.csproj -r win-x64 -f net48 -c Release -o ..\Release\net48
