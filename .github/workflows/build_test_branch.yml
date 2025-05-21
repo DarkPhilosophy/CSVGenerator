@@ -8,30 +8,88 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-and-publish:
     runs-on: windows-latest
     
+    defaults:
+      run:
+        shell: pwsh
+
     steps:
-    - name: Checkout Common library
+    - name: Checkout CSVGenerator (this repository, 'test' branch)
+      uses: actions/checkout@v4
+      with:
+        path: CSVGenerator # Checkout this repo into GITHUB_WORKSPACE/CSVGenerator/
+        ref: test       # Explicitly checkout the 'test' branch of DarkPhilosophy
+        # 'ref' will default to the branch that triggered the workflow (e.g., 'test')
+        # If you always want 'test' branch of CSVGenerator, even if PR is from another branch, add:
+        # ref: test 
+      # CSVGenerator.csproj will be at GITHUB_WORKSPACE/CSVGenerator/CSVGenerator.csproj
+
+    - name: Checkout Common library (from 'test' branch)
       uses: actions/checkout@v4
       with:
         repository: DarkPhilosophy/Common
-        path: Common
-        ref: test
+        path: Common     # Checkout Common library into GITHUB_WORKSPACE/Common/
+        ref: test       # Explicitly checkout the 'test' branch of DarkPhilosophy/Common
+      # Common.csproj will be at GITHUB_WORKSPACE/Common/Common.csproj
         
-    - name: Checkout CSVGenerator
-      uses: actions/checkout@v4
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v4
       with:
-        path: CSVGenerator
-        ref: test
+        dotnet-version: 8.0.x
         
-    - name: Setup MSBuild
-      uses: microsoft/setup-msbuild@v2
-      
     - name: Install .NET Framework 4.8 Developer Pack
-      run: choco install netfx-4.8-devpack -y
-      
-    - name: Build with MSBuild for .NET Framework 4.8
       run: |
-        cd CSVGenerator
-        msbuild /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net48
+        choco install netfx-4.8-devpack -y --no-progress
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "Choco install failed for netfx-4.8-devpack"
+          exit 1
+        }
+      
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        # Key includes hashes of project files from both checked out locations
+        key: ${{ runner.os }}-nuget-${{ hashFiles('CSVGenerator/**/*.csproj', 'Common/**/*.csproj', '**/packages.config') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+
+    - name: List directory structure (for debugging)
+      if: ${{ always() }}
+      run: |
+        Write-Output "GITHUB_WORKSPACE: ${{ github.workspace }}"
+        Write-Output "Workspace root structure (GITHUB_WORKSPACE):"
+        Get-ChildItem -Path ${{ github.workspace }} -Recurse -Depth 3 | Select-Object FullName
+        Write-Output "Project files found:"
+        Get-ChildItem -Path ${{ github.workspace }} -Include *.csproj -Recurse | Select-Object FullName
+      
+    - name: Restore NuGet packages for Common
+      # Path is now GITHUB_WORKSPACE/Common/Common.csproj
+      run: dotnet restore (Join-Path "${{ github.workspace }}" "Common" "Common.csproj")
+      
+    - name: Build Common library
+      # Path is now GITHUB_WORKSPACE/Common/Common.csproj
+      run: dotnet build (Join-Path "${{ github.workspace }}" "Common" "Common.csproj") -c Release -f net48
+
+    - name: Restore NuGet packages for CSVGenerator
+      # Path is now GITHUB_WORKSPACE/CSVGenerator/CSVGenerator.csproj
+      run: dotnet restore (Join-Path "${{ github.workspace }}" "CSVGenerator" "CSVGenerator.csproj")
+      
+    - name: Build and Publish CSVGenerator
+      # Path is now GITHUB_WORKSPACE/CSVGenerator/CSVGenerator.csproj
+      # The ProjectReference ..\Common\Common.csproj will now correctly resolve
+      run: |
+        dotnet publish (Join-Path "${{ github.workspace }}" "CSVGenerator" "CSVGenerator.csproj") `
+          -r win-x64 `
+          -f net48 `
+          -c Release `
+          -o (Join-Path "${{ github.workspace }}" "publish_output" "net48_win-x64")
+      
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: CSVGenerator-net48-win-x64
+        path: ${{ github.workspace }}/publish_output/net48_win-x64/
+        if-no-files-found: error
