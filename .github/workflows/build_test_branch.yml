@@ -16,16 +16,13 @@ jobs:
         shell: pwsh
 
     steps:
-    - name: Checkout CSVGenerator (this repository, 'test' branch)
+    - name: Checkout CSVGenerator (this repository)
       uses: actions/checkout@v4
       with:
         path: CSVGenerator
-        ref: test
         # 'ref' will default to the branch that triggered the workflow (e.g., 'test')
-        # If you want to ensure 'test' branch of CSVGenerator always, uncomment below
-        # ref: test 
 
-    - name: Checkout Common library (from 'test' branch)
+    - name: Checkout Common library
       uses: actions/checkout@v4
       with:
         repository: DarkPhilosophy/Common
@@ -35,7 +32,8 @@ jobs:
     - name: Setup .NET SDK
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: 8.0.x # This SDK can build net48
+        dotnet-version: 8.0.x # We request 8.0.x, but runner might have newer (like 9.0.203)
+                               # which is fine, but it's this newer SDK that errors on net10.0
         
     - name: Install .NET Framework 4.8 Developer Pack
       run: |
@@ -44,39 +42,91 @@ jobs:
           Write-Error "Choco install failed for netfx-4.8-devpack"
           exit 1
         }
+
+    - name: Temporarily update TargetFrameworks in project files for CI
+      run: |
+        $projectRoots = @(
+            (Join-Path "${{ github.workspace }}" "CSVGenerator"),
+            (Join-Path "${{ github.workspace }}" "Common")
+        )
+        $tfmToReplace = 'net10.0-windows'
+        # Replace with a TFM known by the 9.0.x SDK.
+        # If you were forcing an 8.0.x SDK via global.json, you'd use 'net8.0-windows'.
+        $tfmReplacement = 'net9.0-windows' 
+
+        Write-Output "Searching for TargetFramework '$tfmToReplace' to replace with '$tfmReplacement'."
+        
+        foreach ($rootPath in $projectRoots) {
+            if (Test-Path $rootPath) {
+                Get-ChildItem -Path $rootPath -Include *.csproj -Recurse | ForEach-Object {
+                    $projectFile = $_.FullName
+                    $content = Get-Content $projectFile -Raw
+                    if ($content -match [regex]::Escape("<TargetFrameworks>") -and $content -match [regex]::Escape($tfmToReplace)) {
+                        Write-Output "Updating TFM in $($projectFile)..."
+                        # More robustly handle presence in <TargetFrameworks>...</TargetFrameworks>
+                        $updatedContent = $content -replace ("(?<=<TargetFrameworks>.*)$([regex]::Escape($tfmToReplace))(.*;|;?)(?=.*<\/TargetFrameworks>)", $tfmReplacement + '$2')
+                        # Fallback for simpler cases or if <TargetFramework> (singular) is used, though less likely for this TFM
+                        if ($updatedContent -eq $content) { # If no change with complex regex, try simpler one
+                           $updatedContent = $content -replace [regex]::Escape($tfmToReplace), $tfmReplacement
+                        }
+
+                        if ($updatedContent -ne $content) {
+                            Set-Content -Path $projectFile -Value $updatedContent -Force
+                            Write-Output "Successfully updated TFM in $projectFile."
+                        } else {
+                            Write-Output "TFM '$tfmToReplace' not found or already replaced in $projectFile in a way the script handles."
+                        }
+                    } elseif ($content -match [regex]::Escape("<TargetFramework>") -and $content -match [regex]::Escape($tfmToReplace)) {
+                         Write-Output "Updating TFM in $($projectFile) (single TargetFramework element)..."
+                         $updatedContent = $content -replace [regex]::Escape($tfmToReplace), $tfmReplacement
+                         Set-Content -Path $projectFile -Value $updatedContent -Force
+                         Write-Output "Successfully updated TFM in $projectFile."
+                    }
+                }
+            } else {
+                Write-Warning "Path $rootPath does not exist."
+            }
+        }
+      shell: pwsh
       
     - name: Cache NuGet packages
       uses: actions/cache@v4
       with:
         path: ~/.nuget/packages
-        key: ${{ runner.os }}-nuget-${{ hashFiles('CSVGenerator/**/*.csproj', 'Common/**/*.csproj', '**/packages.config') }}
+        # Add a component to the key that changes if the TFM replacement script logic changes, or use run_id if simpler
+        key: ${{ runner.os }}-nuget-tfmfix-${{ hashFiles('**/csproj') }}-${{ github.run_id }} 
         restore-keys: |
+          ${{ runner.os }}-nuget-tfmfix-${{ hashFiles('**/csproj') }}-
+          ${{ runner.os }}-nuget-tfmfix-
           ${{ runner.os }}-nuget-
 
-    - name: List directory structure (for debugging)
+    - name: List directory structure and verify TFM changes (for debugging)
       if: ${{ always() }}
       run: |
         Write-Output "GITHUB_WORKSPACE: ${{ github.workspace }}"
         Write-Output "Workspace root structure (GITHUB_WORKSPACE):"
         Get-ChildItem -Path ${{ github.workspace }} -Recurse -Depth 3 | Select-Object FullName
-        Write-Output "Project files found:"
-        Get-ChildItem -Path ${{ github.workspace }} -Include *.csproj -Recurse | Select-Object FullName
-      
-    # REMOVED: Explicit restore for Common. Let 'dotnet build -f net48' handle it.
-    # - name: Restore NuGet packages for Common
-    #   run: dotnet restore (Join-Path "${{ github.workspace }}" "Common" "Common.csproj")
+        Write-Output "Project files found (after potential modification):"
+        $projectRoots = @(
+            (Join-Path "${{ github.workspace }}" "CSVGenerator"),
+            (Join-Path "${{ github.workspace }}" "Common")
+        )
+        foreach ($rootPath in $projectRoots) {
+            if (Test-Path $rootPath) {
+                Get-ChildItem -Path $rootPath -Include *.csproj -Recurse | ForEach-Object {
+                    Write-Output "--- Content of $($_.FullName) (first 25 lines) ---"
+                    Get-Content $_.FullName | Select-Object -First 25
+                    Write-Output "------------------------------------"
+                }
+            }
+        }
       
     - name: Build Common library for net48
-      # 'dotnet build -f net48' will implicitly restore packages ONLY for net48
+      # dotnet build will implicitly restore if needed for the specified framework
       run: dotnet build (Join-Path "${{ github.workspace }}" "Common" "Common.csproj") -c Release -f net48
 
-    # REMOVED: Explicit restore for CSVGenerator. Let 'dotnet publish -f net48' handle it.
-    # - name: Restore NuGet packages for CSVGenerator
-    #   run: dotnet restore (Join-Path "${{ github.workspace }}" "CSVGenerator" "CSVGenerator.csproj")
-      
     - name: Build and Publish CSVGenerator for net48
-      # 'dotnet publish -f net48' will implicitly restore packages ONLY for net48
-      # and then build and publish.
+      # dotnet publish will implicitly restore and build if needed for the specified framework
       run: |
         dotnet publish (Join-Path "${{ github.workspace }}" "CSVGenerator" "CSVGenerator.csproj") `
           -r win-x64 `
