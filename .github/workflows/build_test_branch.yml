@@ -44,15 +44,40 @@ jobs:
         }
 
     - name: Temporarily update TargetFrameworks in project files for CI
+      env:
+        # Make GITHUB_WORKSPACE explicitly available as a script-level env var
+        CI_WORKSPACE: ${{ github.workspace }} 
       run: |
+        Write-Output "Script starting. Value of CI_WORKSPACE from step env: '$($env:CI_WORKSPACE)'"
+        Write-Output "Script starting. Value of GITHUB_WORKSPACE from direct env access: '$($env:GITHUB_WORKSPACE)'"
+
+        # Prefer GITHUB_WORKSPACE if available directly, fallback to CI_WORKSPACE from step env
+        $baseWorkspacePath = $env:GITHUB_WORKSPACE
+        if ([string]::IsNullOrWhiteSpace($baseWorkspacePath)) {
+            Write-Warning "Direct $env:GITHUB_WORKSPACE was empty or null, trying $env:CI_WORKSPACE from step env."
+            $baseWorkspacePath = $env:CI_WORKSPACE
+        }
+
+        if ([string]::IsNullOrWhiteSpace($baseWorkspacePath)) {
+            Write-Error "Base workspace path is empty or null. Both $env:GITHUB_WORKSPACE and step-defined $env:CI_WORKSPACE were not usable. Aborting."
+            exit 1
+        }
+        Write-Output "Using base workspace path: '$baseWorkspacePath'"
+
+        $csvGeneratorPath = Join-Path $baseWorkspacePath "CSVGenerator"
+        $commonPath = Join-Path $baseWorkspacePath "Common"
+
+        Write-Output "Calculated csvGeneratorPath: '$csvGeneratorPath'"
+        Write-Output "Calculated commonPath: '$commonPath'"
+        
         $projectRoots = @(
-            (Join-Path "${{ env.GITHUB_WORKSPACE }}" "CSVGenerator"), # Corrected
-            (Join-Path "${{ env.GITHUB_WORKSPACE }}" "Common")      # Corrected
+            $csvGeneratorPath,
+            $commonPath
         )
+        
         $tfmToReplace = 'net10.0-windows'
         $tfmReplacement = 'net9.0-windows' # Ensure this matches an SDK the runner can handle
 
-        Write-Output "GITHUB_WORKSPACE is: ${{ env.GITHUB_WORKSPACE }}"
         Write-Output "Project roots to scan: $($projectRoots -join ', ')"
         Write-Output "Searching for TargetFramework '$tfmToReplace' to replace with '$tfmReplacement'."
         
@@ -63,9 +88,8 @@ jobs:
                     $projectFile = $_.FullName
                     Write-Output "Processing project file: $projectFile"
                     $content = Get-Content $projectFile -Raw
-                    $originalContent = $content # Keep a copy for comparison
+                    $originalContent = $content 
 
-                    # Target the TFM within <TargetFrameworks>...</TargetFrameworks>
                     if ($content -match "<TargetFrameworks>.*$([regex]::Escape($tfmToReplace)).*</TargetFrameworks>") {
                         Write-Output "Found '$tfmToReplace' in <TargetFrameworks> section of $($projectFile)."
                         $content = $content -replace "([<TargetFrameworks>].*?;?)\s*$([regex]::Escape($tfmToReplace))\s*(;?.*?<\TargetFrameworks>)", ('$1' + $tfmReplacement + '$3')
@@ -75,12 +99,10 @@ jobs:
                              $content = $content -replace [regex]::Escape($tfmToReplace), $tfmReplacement
                         }
                     }
-                    # Also handle if it's in a singular <TargetFramework> element
                     elseif ($content -match "<TargetFramework>$([regex]::Escape($tfmToReplace))</TargetFramework>") {
                         Write-Output "Found '$tfmToReplace' in <TargetFramework> section of $($projectFile)."
                         $content = $content -replace "<TargetFramework>$([regex]::Escape($tfmToReplace))</TargetFramework>", "<TargetFramework>$tfmReplacement</TargetFramework>"
                     }
-
 
                     if ($content -ne $originalContent) {
                         Set-Content -Path $projectFile -Value $content -Force -Encoding UTF8
@@ -90,7 +112,7 @@ jobs:
                     }
                 }
             } else {
-                Write-Warning "Path $rootPath does not exist. Check GITHUB_WORKSPACE and checkout paths."
+                Write-Warning "Path $rootPath does not exist. Check checkout paths and calculated paths."
             }
         }
       shell: pwsh
@@ -99,7 +121,6 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/.nuget/packages
-        # Add a component to the key that changes if the TFM replacement script logic changes, or use run_id if simpler
         key: ${{ runner.os }}-nuget-tfmfix-${{ hashFiles('**/csproj') }}-${{ github.run_id }} 
         restore-keys: |
           ${{ runner.os }}-nuget-tfmfix-${{ hashFiles('**/csproj') }}-
@@ -107,42 +128,47 @@ jobs:
           ${{ runner.os }}-nuget-
 
     - name: List directory structure and verify TFM changes (for debugging)
-      if: ${{ always() }}
+      if: ${{ always() }} # Run even if previous steps fail
       run: |
-        Write-Output "GITHUB_WORKSPACE: ${{ github.workspace }}"
-        Write-Output "Workspace root structure (GITHUB_WORKSPACE):"
-        Get-ChildItem -Path ${{ github.workspace }} -Recurse -Depth 3 | Select-Object FullName
+        Write-Output "GITHUB_WORKSPACE (from github context): ${{ github.workspace }}"
+        Write-Output "GITHUB_WORKSPACE (from env context): $env:GITHUB_WORKSPACE"
+        Write-Output "Workspace root structure (using $env:GITHUB_WORKSPACE):"
+        Get-ChildItem -Path $env:GITHUB_WORKSPACE -Recurse -Depth 3 | Select-Object FullName
         Write-Output "Project files found (after potential modification):"
-        $projectRoots = @(
-            (Join-Path "${{ github.workspace }}" "CSVGenerator"),
-            (Join-Path "${{ github.workspace }}" "Common")
+        
+        $baseWorkspacePathForDebug = $env:GITHUB_WORKSPACE
+        if ([string]::IsNullOrWhiteSpace($baseWorkspacePathForDebug)) { $baseWorkspacePathForDebug = "${{ github.workspace }}" }
+
+        $projectRootsForDebug = @(
+            (Join-Path $baseWorkspacePathForDebug "CSVGenerator"),
+            (Join-Path $baseWorkspacePathForDebug "Common")
         )
-        foreach ($rootPath in $projectRoots) {
+        foreach ($rootPath in $projectRootsForDebug) {
             if (Test-Path $rootPath) {
                 Get-ChildItem -Path $rootPath -Include *.csproj -Recurse | ForEach-Object {
                     Write-Output "--- Content of $($_.FullName) (first 25 lines) ---"
                     Get-Content $_.FullName | Select-Object -First 25
                     Write-Output "------------------------------------"
                 }
+            } else {
+                 Write-Warning "Debug: Path $rootPath not found."
             }
         }
       
     - name: Build Common library for net48
-      # dotnet build will implicitly restore if needed for the specified framework
-      run: dotnet build (Join-Path "${{ github.workspace }}" "Common" "Common.csproj") -c Release -f net48
+      run: dotnet build (Join-Path $env:GITHUB_WORKSPACE "Common" "Common.csproj") -c Release -f net48
 
     - name: Build and Publish CSVGenerator for net48
-      # dotnet publish will implicitly restore and build if needed for the specified framework
       run: |
-        dotnet publish (Join-Path "${{ github.workspace }}" "CSVGenerator" "CSVGenerator.csproj") `
+        dotnet publish (Join-Path $env:GITHUB_WORKSPACE "CSVGenerator" "CSVGenerator.csproj") `
           -r win-x64 `
           -f net48 `
           -c Release `
-          -o (Join-Path "${{ github.workspace }}" "publish_output" "net48_win-x64")
+          -o (Join-Path $env:GITHUB_WORKSPACE "publish_output" "net48_win-x64")
       
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
         name: CSVGenerator-net48-win-x64
-        path: ${{ github.workspace }}/publish_output/net48_win-x64/
+        path: ${{ env.GITHUB_WORKSPACE }}/publish_output/net48_win-x64/ # Using env context for path
         if-no-files-found: error
