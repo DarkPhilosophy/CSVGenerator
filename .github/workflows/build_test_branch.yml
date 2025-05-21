@@ -19,21 +19,19 @@ jobs:
     - name: Checkout CSVGenerator (this repository)
       uses: actions/checkout@v4
       with:
-        path: CSVGenerator
-        # 'ref' will default to the branch that triggered the workflow (e.g., 'test')
+        path: CSVGenerator # Checks out this repo into GITHUB_WORKSPACE/CSVGenerator
 
     - name: Checkout Common library
       uses: actions/checkout@v4
       with:
         repository: DarkPhilosophy/Common
-        path: Common
+        path: Common # Checks out Common repo into GITHUB_WORKSPACE/Common
         ref: test
         
     - name: Setup .NET SDK
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: 8.0.x # We request 8.0.x, but runner might have newer (like 9.0.203)
-                               # which is fine, but it's this newer SDK that errors on net10.0
+        dotnet-version: 8.0.x
         
     - name: Install .NET Framework 4.8 Developer Pack
       run: |
@@ -45,13 +43,11 @@ jobs:
 
     - name: Temporarily update TargetFrameworks in project files for CI
       env:
-        # Make GITHUB_WORKSPACE explicitly available as a script-level env var
         CI_WORKSPACE: ${{ github.workspace }} 
       run: |
         Write-Output "Script starting. Value of CI_WORKSPACE from step env: '$($env:CI_WORKSPACE)'"
         Write-Output "Script starting. Value of GITHUB_WORKSPACE from direct env access: '$($env:GITHUB_WORKSPACE)'"
 
-        # Prefer GITHUB_WORKSPACE if available directly, fallback to CI_WORKSPACE from step env
         $baseWorkspacePath = $env:GITHUB_WORKSPACE
         if ([string]::IsNullOrWhiteSpace($baseWorkspacePath)) {
             Write-Warning "Direct $env:GITHUB_WORKSPACE was empty or null, trying $env:CI_WORKSPACE from step env."
@@ -59,27 +55,38 @@ jobs:
         }
 
         if ([string]::IsNullOrWhiteSpace($baseWorkspacePath)) {
-            Write-Error "Base workspace path is empty or null. Both $env:GITHUB_WORKSPACE and step-defined $env:CI_WORKSPACE were not usable. Aborting."
+            Write-Error "Base workspace path is empty or null. Aborting."
             exit 1
         }
         Write-Output "Using base workspace path: '$baseWorkspacePath'"
 
-        $csvGeneratorPath = Join-Path $baseWorkspacePath "CSVGenerator"
-        $commonPath = Join-Path $baseWorkspacePath "Common"
+        # These paths now correctly point to the roots of each checkout
+        $csvGeneratorCheckoutPath = Join-Path $baseWorkspacePath "CSVGenerator" 
+        $commonCheckoutPath = Join-Path $baseWorkspacePath "Common"          
 
-        Write-Output "Calculated csvGeneratorPath: '$csvGeneratorPath'"
-        Write-Output "Calculated commonPath: '$commonPath'"
+        Write-Output "Calculated csvGeneratorCheckoutPath: '$csvGeneratorCheckoutPath'"
+        Write-Output "Calculated commonCheckoutPath: '$commonCheckoutPath'"
         
         $projectRoots = @(
-            $csvGeneratorPath,
-            $commonPath
+            $csvGeneratorCheckoutPath,
+            $commonCheckoutPath
         )
         
         $tfmToReplace = 'net10.0-windows'
-        $tfmReplacement = 'net9.0-windows' # Ensure this matches an SDK the runner can handle
+        $tfmReplacement = 'net9.0-windows'
+        $escapedTfmToReplace = [regex]::Escape($tfmToReplace) # Escape the TFM string for regex
 
         Write-Output "Project roots to scan: $($projectRoots -join ', ')"
-        Write-Output "Searching for TargetFramework '$tfmToReplace' to replace with '$tfmReplacement'."
+        Write-Output "Searching for TargetFramework '$tfmToReplace' (escaped: '$escapedTfmToReplace') to replace with '$tfmReplacement'."
+
+        # Construct the regex pattern for <TargetFrameworks>...</TargetFrameworks>
+        $regexPatternForTargetFrameworks = "([<TargetFrameworks>].*?;?)\s*$($escapedTfmToReplace)\s*(;?.*?<\TargetFrameworks>)"
+        # Construct the regex pattern for <TargetFramework>...</TargetFramework>
+        $regexPatternForTargetFramework = "<TargetFramework>$($escapedTfmToReplace)</TargetFramework>"
+        $replacementForTargetFramework = "<TargetFramework>$($tfmReplacement)</TargetFramework>"
+
+        Write-Output "Regex for <TargetFrameworks>: $regexPatternForTargetFrameworks"
+        Write-Output "Regex for <TargetFramework>: $regexPatternForTargetFramework"
         
         foreach ($rootPath in $projectRoots) {
             if (Test-Path $rootPath) {
@@ -90,18 +97,21 @@ jobs:
                     $content = Get-Content $projectFile -Raw
                     $originalContent = $content 
 
-                    if ($content -match "<TargetFrameworks>.*$([regex]::Escape($tfmToReplace)).*</TargetFrameworks>") {
+                    # Check and replace within <TargetFrameworks>
+                    if ($content -match "<TargetFrameworks>.*$($escapedTfmToReplace).*</TargetFrameworks>") {
                         Write-Output "Found '$tfmToReplace' in <TargetFrameworks> section of $($projectFile)."
-                        $content = $content -replace "([<TargetFrameworks>].*?;?)\s*$([regex]::Escape($tfmToReplace))\s*(;?.*?<\TargetFrameworks>)", ('$1' + $tfmReplacement + '$3')
+                        $content = $content -replace $regexPatternForTargetFrameworks, ('$1' + $tfmReplacement + '$3')
                         
-                        if ($content -eq $originalContent -and $content -match [regex]::Escape($tfmToReplace)) {
-                             Write-Output "Primary regex didn't change content for $projectFile, trying simpler replace..."
-                             $content = $content -replace [regex]::Escape($tfmToReplace), $tfmReplacement
+                        # Fallback if the more complex regex didn't change anything but the TFM is still present
+                        if ($content -eq $originalContent -and $content -match $escapedTfmToReplace) {
+                             Write-Output "Primary regex for <TargetFrameworks> didn't change content, trying simpler global replace for '$tfmToReplace' in this file..."
+                             $content = $content -replace $escapedTfmToReplace, $tfmReplacement
                         }
                     }
-                    elseif ($content -match "<TargetFramework>$([regex]::Escape($tfmToReplace))</TargetFramework>") {
+                    # Else, check and replace within singular <TargetFramework>
+                    elseif ($content -match $regexPatternForTargetFramework) {
                         Write-Output "Found '$tfmToReplace' in <TargetFramework> section of $($projectFile)."
-                        $content = $content -replace "<TargetFramework>$([regex]::Escape($tfmToReplace))</TargetFramework>", "<TargetFramework>$tfmReplacement</TargetFramework>"
+                        $content = $content -replace $regexPatternForTargetFramework, $replacementForTargetFramework
                     }
 
                     if ($content -ne $originalContent) {
@@ -128,7 +138,7 @@ jobs:
           ${{ runner.os }}-nuget-
 
     - name: List directory structure and verify TFM changes (for debugging)
-      if: ${{ always() }} # Run even if previous steps fail
+      if: ${{ always() }}
       run: |
         Write-Output "GITHUB_WORKSPACE (from github context): ${{ github.workspace }}"
         Write-Output "GITHUB_WORKSPACE (from env context): $env:GITHUB_WORKSPACE"
@@ -170,5 +180,5 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: CSVGenerator-net48-win-x64
-        path: ${{ env.GITHUB_WORKSPACE }}/publish_output/net48_win-x64/ # Using env context for path
+        path: ${{ env.GITHUB_WORKSPACE }}/publish_output/net48_win-x64/
         if-no-files-found: error
