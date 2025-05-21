@@ -6,7 +6,7 @@ dotnet publish CSVGenerator\CSVGenerator.csproj -r win-x64 -f net9.0-windows -c 
   <PropertyGroup>
     <TargetFrameworks>net48;net5.0-windows;net6.0-windows;net7.0-windows;net8.0-windows;net9.0-windows;net10.0-windows</TargetFrameworks>
     <UseWPF>true</UseWPF>
-    <ApplicationIcon>..\app.ico</ApplicationIcon>
+    <ApplicationIcon>app.ico</ApplicationIcon>
     <Version>1.0.1.0</Version>
     <Authors>Adalbert Alexandru Ungureanu</Authors>
     <Company>Flex</Company>
@@ -125,7 +125,7 @@ dotnet publish CSVGenerator\CSVGenerator.csproj -r win-x64 -f net9.0-windows -c 
 
   <!-- Resources -->
   <ItemGroup>
-    <Resource Include="..\app.ico" />
+    <Resource Include="app.ico" />
     <None Update="settings.json" CopyToOutputDirectory="PreserveNewest">
       <ExcludeFromSingleFile Condition="'$(TargetFramework)' != 'net48'">true</ExcludeFromSingleFile>
     </None>

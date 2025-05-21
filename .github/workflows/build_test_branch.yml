@@ -25,72 +25,13 @@ jobs:
         path: CSVGenerator
         ref: test
         
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: |
-          6.0.x
-          8.0.x
-          9.0.x
-          
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+      
     - name: Install .NET Framework 4.8 Developer Pack
-      run: |
-        choco install netfx-4.8-devpack -y
-      shell: pwsh
+      run: choco install netfx-4.8-devpack -y
       
-    - name: List directory structure
-      run: |
-        Write-Output "Current directory: $(Get-Location)"
-        Write-Output "Directory structure:"
-        Get-ChildItem -Path . -Recurse -Depth 2 | Select-Object FullName
-        Write-Output "Project files:"
-        Get-ChildItem -Path . -Include *.csproj -Recurse | Select-Object FullName
-      shell: pwsh
-      
-    - name: Update target frameworks in all project files
-      run: |
-        # Update CSVGenerator project files
-        Get-ChildItem -Path CSVGenerator -Include *.csproj -Recurse | ForEach-Object {
-          $content = Get-Content $_.FullName -Raw
-          $updatedContent = $content -replace 'net10.0-windows', 'net9.0-windows'
-          Set-Content -Path $_.FullName -Value $updatedContent
-          Write-Output "Updated target framework in $($_.FullName) from net10.0-windows to net9.0-windows"
-        }
-        
-        # Update Common project files
-        Get-ChildItem -Path Common -Include *.csproj -Recurse | ForEach-Object {
-          $content = Get-Content $_.FullName -Raw
-          $updatedContent = $content -replace 'net10.0-windows', 'net9.0-windows'
-          Set-Content -Path $_.FullName -Value $updatedContent
-          Write-Output "Updated target framework in $($_.FullName) from net10.0-windows to net9.0-windows"
-        }
-      shell: pwsh
-      
-    - name: Display Common project content
-      run: |
-        if (Test-Path -Path "Common\Common.csproj") {
-          Write-Output "Common.csproj content:"
-          Get-Content -Path "Common\Common.csproj"
-        } else {
-          Write-Output "Common.csproj not found!"
-        }
-      shell: pwsh
-      
-    - name: Build Common library first
-      run: |
-        cd Common
-        dotnet build -c Release -f net48
-      shell: pwsh
-      
-    - name: Build CSVGenerator
+    - name: Build with MSBuild for .NET Framework 4.8
       run: |
         cd CSVGenerator
-        dotnet publish CSVGenerator.csproj -r win-x64 -f net48 -c Release -o ..\Release\net48
-      shell: pwsh
-      
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: CSVGenerator-net48
-        path: Release\net48
-        if-no-files-found: warn
+        msbuild /p:Configuration=Release /p:Platform="Any CPU" /p:TargetFramework=net48
