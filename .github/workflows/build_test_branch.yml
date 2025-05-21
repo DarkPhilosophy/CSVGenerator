@@ -46,28 +46,30 @@ jobs:
     - name: Temporarily update TargetFrameworks in project files for CI
       run: |
         $projectRoots = @(
-            (Join-Path "${{ env.GITHUB_WORKSPACE }}" "CSVGenerator"),
-            (Join-Path "${{ env.GITHUB_WORKSPACE }}" "Common")
+            (Join-Path "${{ env.GITHUB_WORKSPACE }}" "CSVGenerator"), # Corrected
+            (Join-Path "${{ env.GITHUB_WORKSPACE }}" "Common")      # Corrected
         )
         $tfmToReplace = 'net10.0-windows'
         $tfmReplacement = 'net9.0-windows' # Ensure this matches an SDK the runner can handle
 
+        Write-Output "GITHUB_WORKSPACE is: ${{ env.GITHUB_WORKSPACE }}"
+        Write-Output "Project roots to scan: $($projectRoots -join ', ')"
         Write-Output "Searching for TargetFramework '$tfmToReplace' to replace with '$tfmReplacement'."
         
         foreach ($rootPath in $projectRoots) {
             if (Test-Path $rootPath) {
+                Write-Output "Scanning directory: $rootPath"
                 Get-ChildItem -Path $rootPath -Include *.csproj -Recurse | ForEach-Object {
                     $projectFile = $_.FullName
+                    Write-Output "Processing project file: $projectFile"
                     $content = Get-Content $projectFile -Raw
                     $originalContent = $content # Keep a copy for comparison
 
                     # Target the TFM within <TargetFrameworks>...</TargetFrameworks>
                     if ($content -match "<TargetFrameworks>.*$([regex]::Escape($tfmToReplace)).*</TargetFrameworks>") {
-                        Write-Output "Updating TFM in $($projectFile) (within <TargetFrameworks>)..."
-                        # This regex tries to replace the TFM and handle surrounding semicolons
+                        Write-Output "Found '$tfmToReplace' in <TargetFrameworks> section of $($projectFile)."
                         $content = $content -replace "([<TargetFrameworks>].*?;?)\s*$([regex]::Escape($tfmToReplace))\s*(;?.*?<\TargetFrameworks>)", ('$1' + $tfmReplacement + '$3')
                         
-                        # If the above didn't catch it (e.g., it was the only TFM without semicolons, or simple replace is safer)
                         if ($content -eq $originalContent -and $content -match [regex]::Escape($tfmToReplace)) {
                              Write-Output "Primary regex didn't change content for $projectFile, trying simpler replace..."
                              $content = $content -replace [regex]::Escape($tfmToReplace), $tfmReplacement
@@ -75,7 +77,7 @@ jobs:
                     }
                     # Also handle if it's in a singular <TargetFramework> element
                     elseif ($content -match "<TargetFramework>$([regex]::Escape($tfmToReplace))</TargetFramework>") {
-                        Write-Output "Updating TFM in $($projectFile) (within <TargetFramework>)..."
+                        Write-Output "Found '$tfmToReplace' in <TargetFramework> section of $($projectFile)."
                         $content = $content -replace "<TargetFramework>$([regex]::Escape($tfmToReplace))</TargetFramework>", "<TargetFramework>$tfmReplacement</TargetFramework>"
                     }
 
@@ -88,7 +90,7 @@ jobs:
                     }
                 }
             } else {
-                Write-Warning "Path $rootPath does not exist."
+                Write-Warning "Path $rootPath does not exist. Check GITHUB_WORKSPACE and checkout paths."
             }
         }
       shell: pwsh
