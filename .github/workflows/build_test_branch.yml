@@ -46,13 +46,11 @@ jobs:
     - name: Temporarily update TargetFrameworks in project files for CI
       run: |
         $projectRoots = @(
-            (Join-Path "${{ github.workspace }}" "CSVGenerator"),
-            (Join-Path "${{ github.workspace }}" "Common")
+            (Join-Path "${{ env.GITHUB_WORKSPACE }}" "CSVGenerator"),
+            (Join-Path "${{ env.GITHUB_WORKSPACE }}" "Common")
         )
         $tfmToReplace = 'net10.0-windows'
-        # Replace with a TFM known by the 9.0.x SDK.
-        # If you were forcing an 8.0.x SDK via global.json, you'd use 'net8.0-windows'.
-        $tfmReplacement = 'net9.0-windows' 
+        $tfmReplacement = 'net9.0-windows' # Ensure this matches an SDK the runner can handle
 
         Write-Output "Searching for TargetFramework '$tfmToReplace' to replace with '$tfmReplacement'."
         
@@ -61,26 +59,32 @@ jobs:
                 Get-ChildItem -Path $rootPath -Include *.csproj -Recurse | ForEach-Object {
                     $projectFile = $_.FullName
                     $content = Get-Content $projectFile -Raw
-                    if ($content -match [regex]::Escape("<TargetFrameworks>") -and $content -match [regex]::Escape($tfmToReplace)) {
-                        Write-Output "Updating TFM in $($projectFile)..."
-                        # More robustly handle presence in <TargetFrameworks>...</TargetFrameworks>
-                        $updatedContent = $content -replace ("(?<=<TargetFrameworks>.*)$([regex]::Escape($tfmToReplace))(.*;|;?)(?=.*<\/TargetFrameworks>)", $tfmReplacement + '$2')
-                        # Fallback for simpler cases or if <TargetFramework> (singular) is used, though less likely for this TFM
-                        if ($updatedContent -eq $content) { # If no change with complex regex, try simpler one
-                           $updatedContent = $content -replace [regex]::Escape($tfmToReplace), $tfmReplacement
-                        }
+                    $originalContent = $content # Keep a copy for comparison
 
-                        if ($updatedContent -ne $content) {
-                            Set-Content -Path $projectFile -Value $updatedContent -Force
-                            Write-Output "Successfully updated TFM in $projectFile."
-                        } else {
-                            Write-Output "TFM '$tfmToReplace' not found or already replaced in $projectFile in a way the script handles."
+                    # Target the TFM within <TargetFrameworks>...</TargetFrameworks>
+                    if ($content -match "<TargetFrameworks>.*$([regex]::Escape($tfmToReplace)).*</TargetFrameworks>") {
+                        Write-Output "Updating TFM in $($projectFile) (within <TargetFrameworks>)..."
+                        # This regex tries to replace the TFM and handle surrounding semicolons
+                        $content = $content -replace "([<TargetFrameworks>].*?;?)\s*$([regex]::Escape($tfmToReplace))\s*(;?.*?<\TargetFrameworks>)", ('$1' + $tfmReplacement + '$3')
+                        
+                        # If the above didn't catch it (e.g., it was the only TFM without semicolons, or simple replace is safer)
+                        if ($content -eq $originalContent -and $content -match [regex]::Escape($tfmToReplace)) {
+                             Write-Output "Primary regex didn't change content for $projectFile, trying simpler replace..."
+                             $content = $content -replace [regex]::Escape($tfmToReplace), $tfmReplacement
                         }
-                    } elseif ($content -match [regex]::Escape("<TargetFramework>") -and $content -match [regex]::Escape($tfmToReplace)) {
-                         Write-Output "Updating TFM in $($projectFile) (single TargetFramework element)..."
-                         $updatedContent = $content -replace [regex]::Escape($tfmToReplace), $tfmReplacement
-                         Set-Content -Path $projectFile -Value $updatedContent -Force
-                         Write-Output "Successfully updated TFM in $projectFile."
+                    }
+                    # Also handle if it's in a singular <TargetFramework> element
+                    elseif ($content -match "<TargetFramework>$([regex]::Escape($tfmToReplace))</TargetFramework>") {
+                        Write-Output "Updating TFM in $($projectFile) (within <TargetFramework>)..."
+                        $content = $content -replace "<TargetFramework>$([regex]::Escape($tfmToReplace))</TargetFramework>", "<TargetFramework>$tfmReplacement</TargetFramework>"
+                    }
+
+
+                    if ($content -ne $originalContent) {
+                        Set-Content -Path $projectFile -Value $content -Force -Encoding UTF8
+                        Write-Output "Successfully updated TFM in $projectFile."
+                    } else {
+                        Write-Output "TFM '$tfmToReplace' not found or replacement logic didn't alter content in $projectFile."
                     }
                 }
             } else {
