@@ -73,19 +73,10 @@ jobs:
         
         $tfmToReplace = 'net10.0-windows'
         $tfmReplacement = 'net9.0-windows'
-        $escapedTfmToReplace = [regex]::Escape($tfmToReplace) 
+        $escapedTfmToReplace = [regex]::Escape($tfmToReplace) # Still useful for regex parts
 
         Write-Output "Project roots to scan: $($projectRoots -join ', ')"
-        Write-Output "Searching for TargetFramework '$tfmToReplace' (escaped: '$escapedTfmToReplace') to replace with '$tfmReplacement'."
-
-        # Construct the regex pattern for <TargetFrameworks>...</TargetFrameworks>
-        $regexPatternForTargetFrameworks = "(\[<TargetFrameworks>].*?;?)\s*$($escapedTfmToReplace)\s*(;?.*?\[<\/TargetFrameworks>])"
-        # Construct the regex pattern for <TargetFramework>...</TargetFramework>
-        $regexPatternForTargetFramework = "\[<TargetFramework>]$($escapedTfmToReplace)\[<\/TargetFramework>]"
-        $replacementForTargetFramework = "[<TargetFramework>]$($tfmReplacement)[<\/TargetFramework>]"
-
-        Write-Output "Regex for <TargetFrameworks>: $regexPatternForTargetFrameworks"
-        Write-Output "Regex for <TargetFramework>: $regexPatternForTargetFramework"
+        Write-Output "Searching for TargetFramework '$tfmToReplace' to replace with '$tfmReplacement'."
         
         foreach ($rootPath in $projectRoots) {
             if (Test-Path $rootPath) {
@@ -96,27 +87,58 @@ jobs:
                     $content = Get-Content $projectFile -Raw
                     $originalContent = $content 
 
-                    # Adjusted match condition to use the escaped [ and ]
-                    if ($content -match "\[<TargetFrameworks>].*$($escapedTfmToReplace).*\[<\/TargetFrameworks>]") {
-                        Write-Output "Found '$tfmToReplace' in <TargetFrameworks> section of $($projectFile)."
-                        $replacementInTargetFrameworks = ('$1' + $tfmReplacement + '$3')
-                        $content = $content -replace $regexPatternForTargetFrameworks, $replacementInTargetFrameworks
-                        
-                        if ($content -eq $originalContent -and $content -match $escapedTfmToReplace) {
-                             Write-Output "Primary regex for <TargetFrameworks> didn't change content, trying simpler global replace for '$tfmToReplace'..."
-                             $content = $content -replace $escapedTfmToReplace, $tfmReplacement
+                    $wasModified = $false
+
+                    # Attempt 1: Simple, direct string replacement (most reliable for exact strings)
+                    if ($content.Contains($tfmToReplace)) {
+                        Write-Output "Attempting simple string replace of '$tfmToReplace' in $projectFile"
+                        $content = $content.Replace($tfmToReplace, $tfmReplacement)
+                        if ($content -ne $originalContent) {
+                            Write-Output "Simple string replace successful for $projectFile."
+                            $wasModified = $true
+                        } else {
+                            Write-Output "Simple string replace did not alter content for $projectFile (this is unexpected if .Contains was true)."
                         }
                     }
-                    elseif ($content -match $regexPatternForTargetFramework) { # Adjusted match condition
-                        Write-Output "Found '$tfmToReplace' in <TargetFramework> section of $($projectFile)."
-                        $content = $content -replace $regexPatternForTargetFramework, $replacementForTargetFramework
+
+                    # Attempt 2: If not modified and still contains the TFM, try regex for specific XML structures
+                    if (-not $wasModified -and $content.Contains($tfmToReplace)) {
+                        Write-Output "Simple replace didn't modify, or TFM re-checked. Trying regex for specific structures in $projectFile."
+                        # Regex for <TargetFrameworks> (using original complex one, as it seemed syntactically okay last time if the file wasn't modified by simple replace)
+                        $regexPatternForTargetFrameworks = "([<TargetFrameworks>].*?;?)\s*$($escapedTfmToReplace)\s*(;?.*?<\TargetFrameworks>)"
+                        if ($content -match "<TargetFrameworks>.*$($escapedTfmToReplace).*</TargetFrameworks>") {
+                            Write-Output "Found '$tfmToReplace' in <TargetFrameworks> section of $($projectFile) for regex attempt."
+                            $tempContent = $content -replace $regexPatternForTargetFrameworks, ('$1' + $tfmReplacement + '$3')
+                            if ($tempContent -ne $content) {
+                                $content = $tempContent
+                                $wasModified = $true
+                                Write-Output "Regex replace in <TargetFrameworks> successful."
+                            } else {
+                                Write-Output "Regex replace in <TargetFrameworks> did not alter content."
+                            }
+                        }
+                        
+                        # Regex for singular <TargetFramework>
+                        if (-not $wasModified -and $content -match "<TargetFramework>$($escapedTfmToReplace)</TargetFramework>") {
+                             Write-Output "Found '$tfmToReplace' in <TargetFramework> section of $($projectFile) for regex attempt."
+                             $regexPatternForTargetFramework = "<TargetFramework>$($escapedTfmToReplace)</TargetFramework>"
+                             $replacementForTargetFramework = "<TargetFramework>$($tfmReplacement)</TargetFramework>"
+                             $tempContent = $content -replace $regexPatternForTargetFramework, $replacementForTargetFramework
+                             if ($tempContent -ne $content) {
+                                $content = $tempContent
+                                $wasModified = $true
+                                Write-Output "Regex replace in <TargetFramework> successful."
+                             } else {
+                                Write-Output "Regex replace in <TargetFramework> did not alter content."
+                             }
+                        }
                     }
 
-                    if ($content -ne $originalContent) {
+                    if ($wasModified) {
                         Set-Content -Path $projectFile -Value $content -Force -Encoding UTF8
-                        Write-Output "Successfully updated TFM in $projectFile."
+                        Write-Output "Successfully saved updated TFM in $projectFile."
                     } else {
-                        Write-Output "TFM '$tfmToReplace' not found or replacement logic didn't alter content in $projectFile."
+                        Write-Output "TFM '$tfmToReplace' not found or no replacement logic successfully altered content in $projectFile."
                     }
                 }
             } else {
