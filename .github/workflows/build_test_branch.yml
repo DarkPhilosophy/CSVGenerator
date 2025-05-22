@@ -132,153 +132,146 @@ jobs:
     - name: Prepare Release Assets and Metadata
       id: release-prep 
       run: |
-        $ErrorActionPreference = "Stop";
+        $ErrorActionPreference = "Stop" 
         try {
-            $publishDir = "${{ steps.publish-csvgenerator.outputs.publish_dir }}";
-            Write-Output "INFO: Publish directory for asset prep: $publishDir";
-            $stagingDir = Join-Path $env:GITHUB_WORKSPACE "release_staging";
-            Write-Output "INFO: Attempting to create staging directory: $stagingDir";
-            New-Item -ItemType Directory -Path $stagingDir -Force;
-            Write-Output "INFO: Staging directory ensured: $stagingDir";
-            $exeFile = Get-ChildItem -Path $publishDir -Filter CSVGenerator.exe -ErrorAction SilentlyContinue | Select-Object -First 1;
+            $publishDir = "${{ steps.publish-csvgenerator.outputs.publish_dir }}"
+            Write-Output "INFO: Publish directory for asset prep: $publishDir"
+            $stagingDir = Join-Path $env:GITHUB_WORKSPACE "release_staging"
+            Write-Output "INFO: Attempting to create staging directory: $stagingDir"
+            New-Item -ItemType Directory -Path $stagingDir -Force
+            Write-Output "INFO: Staging directory ensured: $stagingDir"
+            $exeFile = Get-ChildItem -Path $publishDir -Filter CSVGenerator.exe -ErrorAction SilentlyContinue | Select-Object -First 1
             if ($exeFile) {
-                Write-Output "INFO: Found executable: $($exeFile.FullName)";
-                Copy-Item -Path $exeFile.FullName -Destination $stagingDir -Force;
-                $stagedExePath = Join-Path $stagingDir $exeFile.Name;
-                Write-Output "INFO: Copied EXE to staging path: $stagedExePath";
-                Write-Output "INFO: Getting version info...";
-                $versionInfo = (Get-Item $stagedExePath).VersionInfo;
-                $fileVersion = $versionInfo.FileVersion;
+                Write-Output "INFO: Found executable: $($exeFile.FullName)"
+                Copy-Item -Path $exeFile.FullName -Destination $stagingDir -Force
+                $stagedExePath = Join-Path $stagingDir $exeFile.Name
+                Write-Output "INFO: Copied EXE to staging path: $stagedExePath"
+                Write-Output "INFO: Getting version info..."
+                $versionInfo = (Get-Item $stagedExePath).VersionInfo
+                $fileVersion = $versionInfo.FileVersion
                 if ([string]::IsNullOrWhiteSpace($fileVersion)) {
-                    Write-Warning "WARN: File version from EXE is empty, using '0.0.0.1' as fallback.";
-                    $fileVersion = "0.0.0.1";
+                    Write-Warning "WARN: File version from EXE is empty, using '0.0.0.1' as fallback."
+                    $fileVersion = "0.0.0.1" 
                 }
-                $productVersion = $versionInfo.ProductVersion;
-                Write-Output "INFO: FileVersion: $fileVersion, ProductVersion: $productVersion";
-                Write-Output "INFO: Calculating SHA256 hash...";
-                $sha256 = Get-FileHash -Path $stagedExePath -Algorithm SHA256 | Select-Object -ExpandProperty Hash;
-                Write-Output "INFO: SHA256: $sha256";
-                $buildTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss UTC";
-                Write-Output "INFO: BuildTime: $buildTime";
-                $gitRepoPath = Join-Path $env:GITHUB_WORKSPACE "CSVGenerator";
-                Write-Output "INFO: Attempting git operations in: $gitRepoPath";
+                $productVersion = $versionInfo.ProductVersion
+                Write-Output "INFO: FileVersion: $fileVersion, ProductVersion: $productVersion"
+                Write-Output "INFO: Calculating SHA256 hash..."
+                $sha256 = Get-FileHash -Path $stagedExePath -Algorithm SHA256 | Select-Object -ExpandProperty Hash
+                Write-Output "INFO: SHA256: $sha256"
+                $buildTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss UTC"
+                Write-Output "INFO: BuildTime: $buildTime"
+                $gitRepoPath = Join-Path $env:GITHUB_WORKSPACE "CSVGenerator"
+                Write-Output "INFO: Attempting git operations in: $gitRepoPath"
                 if (-not (Test-Path (Join-Path $gitRepoPath ".git"))) {
-                    Write-Error "ERROR: Not a git repository at $gitRepoPath or .git folder not found.";
-                    exit 1;
+                    Write-Error "ERROR: Not a git repository at $gitRepoPath or .git folder not found."
+                    exit 1 
                 }
-                Push-Location $gitRepoPath;
-                $commitHash = "";
-                $rawCommitMessage = "";
-                $latestTagName = "";
+                Push-Location $gitRepoPath
+                $commitHash = ""
+                $rawCommitMessage = ""
+                $latestTagName = ""
                 try {
-                    Write-Output "INFO: Getting commit hash...";
-                    $commitHash = git rev-parse HEAD;
-                    Write-Output "INFO: CommitHash: $commitHash";
-                    Write-Output "INFO: Getting commit message...";
-                    $rawCommitMessage = (git log -1 --pretty=%B).Trim();
-                    Write-Output "INFO: Raw CommitMessage line count: $($rawCommitMessage -split '(\r?\n)' | Measure-Object -Line | Select-Object -ExpandProperty Lines)";
-                    Write-Output "INFO: Getting latest tag name (errors suppressed)...";
-                    $latestTagName = $(git describe --tags --abbrev=0 2>$null);
+                    Write-Output "INFO: Getting commit hash..."
+                    $commitHash = git rev-parse HEAD
+                    Write-Output "INFO: CommitHash: $commitHash"
+                    Write-Output "INFO: Getting commit message..."
+                    $rawCommitMessage = (git log -1 --pretty=%B).Trim()
+                    Write-Output "INFO: Raw CommitMessage line count: $($rawCommitMessage -split '(\r?\n)' | Measure-Object -Line | Select-Object -ExpandProperty Lines)"
+                    Write-Output "INFO: Getting latest tag name (errors suppressed)..."
+                    $latestTagName = $(git describe --tags --abbrev=0 2>$null)
                     if ([string]::IsNullOrWhiteSpace($latestTagName)) {
-                        Write-Warning "WARN: No git tags found.";
-                        $latestTagName = $null;
-                    } else { Write-Output "INFO: LatestTagName: $latestTagName"; }
-                } catch { Write-Error "ERROR: Failed during git operations. Error: $($_.Exception.Message)"; }
-                finally { Pop-Location; Write-Output "INFO: Popped location from git repo path."; }
+                        Write-Warning "WARN: No git tags found."
+                        $latestTagName = $null 
+                    } else { Write-Output "INFO: LatestTagName: $latestTagName" }
+                } catch { Write-Error "ERROR: Failed during git operations. Error: $($_.Exception.Message)" }
+                finally { Pop-Location; Write-Output "INFO: Popped location from git repo path." }
 
-                if ([string]::IsNullOrWhiteSpace($commitHash)) { $commitHash = "N/A"; }
-                if ([string]::IsNullOrWhiteSpace($rawCommitMessage)) { $rawCommitMessage = "No commit message found."; }
+                if ([string]::IsNullOrWhiteSpace($commitHash)) { $commitHash = "N/A" }
+                if ([string]::IsNullOrWhiteSpace($rawCommitMessage)) { $rawCommitMessage = "No commit message found." }
 
-                $formattedCommitMessageLines = $rawCommitMessage -split '(\r?\n)' | ForEach-Object {
-                    if ($_ -match '\S') { 
-                        $_.TrimEnd() + "  ";
-                    } else {
-                        $_;
-                    }
-                };
-                $formattedCommitMessage = $formattedCommitMessageLines -join "`n";
-
-                Write-Output "INFO: Formatted commit message line count: $($formattedCommitMessage -split '`n' | Measure-Object -Line | Select-Object -ExpandProperty Lines)";
+                # SIMPLIFIED formattedCommitMessage
+                $formattedCommitMessage = $rawCommitMessage -replace '(\r?\n)+', ' ' # Replace one or more newlines with a single space
+                Write-Output "INFO: SIMPLIFIED Formatted commit message: $formattedCommitMessage"
                 
-                Write-Output "INFO: Creating metadata content...";
-                $metadataContent = "Product: CSVGenerator" + [Environment]::NewLine;
-                $metadataContent += "File: $($exeFile.Name)" + [Environment]::NewLine;
-                $metadataContent += "Version: $fileVersion" + [Environment]::NewLine;
-                $metadataContent += "ProductVersion: $productVersion" + [Environment]::NewLine;
-                $metadataContent += "Build Time: $buildTime" + [Environment]::NewLine;
-                $metadataContent += "Commit: $commitHash" + [Environment]::NewLine;
-                $metadataContent += "Commit Message (raw):`n$rawCommitMessage" + [Environment]::NewLine;
-                $metadataContent += "SHA256: $sha256";
-                $metadataFilePath = Join-Path $stagingDir "$($exeFile.Name).metadata.txt";
-                Write-Output "INFO: Writing metadata to: $metadataFilePath";
-                Set-Content -Path $metadataFilePath -Value $metadataContent;
-                Write-Output "INFO: Metadata written.";
+                Write-Output "INFO: Creating metadata content..."
+                $metadataContent = "Product: CSVGenerator" + [Environment]::NewLine
+                $metadataContent += "File: $($exeFile.Name)" + [Environment]::NewLine
+                $metadataContent += "Version: $fileVersion" + [Environment]::NewLine
+                $metadataContent += "ProductVersion: $productVersion" + [Environment]::NewLine
+                $metadataContent += "Build Time: $buildTime" + [Environment]::NewLine
+                $metadataContent += "Commit: $commitHash" + [Environment]::NewLine 
+                $metadataContent += "Commit Message (raw):`n$rawCommitMessage" + [Environment]::NewLine 
+                $metadataContent += "SHA256: $sha256"
+                $metadataFilePath = Join-Path $stagingDir "$($exeFile.Name).metadata.txt"
+                Write-Output "INFO: Writing metadata to: $metadataFilePath"
+                Set-Content -Path $metadataFilePath -Value $metadataContent
+                Write-Output "INFO: Metadata written."
                 
-                Write-Output "DEBUG: Preparing defaultReleaseNotesBody components...";
-                $commitString = "- **Commit:** `$($commitHash)`";
-                $messageHeaderString = "- **Message:**";    
+                # Construct default release notes body
+                Write-Output "DEBUG: Preparing defaultReleaseNotesBody components..."
+                $_commitString = "- **Commit:** `$($commitHash)`"
+                $_messageHeaderString = "- **Message:**"    
 
-                Write-Output "DEBUG: commitString: $commitString";
-                Write-Output "DEBUG: messageHeaderString: $messageHeaderString";
+                Write-Output "DEBUG: _commitString: $_commitString"
+                Write-Output "DEBUG: _messageHeaderString: $_messageHeaderString"
 
-                $defaultReleaseNotesBody = $commitString + [Environment]::NewLine + $messageHeaderString + [Environment]::NewLine;
+                $defaultReleaseNotesBody = $_commitString + [Environment]::NewLine + $_messageHeaderString + [Environment]::NewLine
                 
-                $commitMessageBlockLines = $formattedCommitMessage -split "`n" | ForEach-Object {
-                    if ($_.Trim().Length -gt 0) { "  > " + $_.TrimEnd(" "); } 
-                    else { ""; } 
-                };
-                $commitMessageBlock = $commitMessageBlockLines -join [Environment]::NewLine;
-                
-                $defaultReleaseNotesBody += $commitMessageBlock.TrimEnd([Environment]::NewLine.ToCharArray());
+                # For the commit message block, use the simplified formattedCommitMessage
+                $commitMessageBlock = $formattedCommitMessage -split "`n" | ForEach-Object { # Will be single line now
+                    if ($_.Trim().Length -gt 0) { "  > " + $_.TrimEnd() } 
+                    else { "" } 
+                }
+                $defaultReleaseNotesBody += ($commitMessageBlock -join [Environment]::NewLine).TrimEnd([Environment]::NewLine.ToCharArray())
 
-                $releaseNotesBody = $defaultReleaseNotesBody;
+                $releaseNotesBody = $defaultReleaseNotesBody
 
                 if ($latestTagName) { 
-                    Write-Output "INFO: Getting commits since last tag ($latestTagName)...";
-                    Push-Location $gitRepoPath;
+                    Write-Output "INFO: Getting commits since last tag ($latestTagName)..."
+                    Push-Location $gitRepoPath
                     try {
-                        $commitsSinceLastTag = git log "${latestTagName}..HEAD" --pretty=format:"- %s (`%h`)" --reverse | Where-Object { $_.Trim() };
+                        $commitsSinceLastTag = git log "${latestTagName}..HEAD" --pretty=format:"- %s (`%h`)" --reverse | Where-Object { $_.Trim() }
                         if ($commitsSinceLastTag) {
-                            Write-Output "INFO: Found commits since last tag.";
-                            $releaseNotesBody = "### Changes since ${latestTagName}" + [Environment]::NewLine + ($commitsSinceLastTag -join [Environment]::NewLine);
+                            Write-Output "INFO: Found commits since last tag."
+                            $releaseNotesBody = "### Changes since ${latestTagName}" + [Environment]::NewLine + ($commitsSinceLastTag -join [Environment]::NewLine)
                         } else { 
-                            Write-Output "INFO: No new commits found since last tag $latestTagName. Using single commit info (already set).";
+                            Write-Output "INFO: No new commits found since last tag $latestTagName. Using single commit info (already set)."
                         }
                     } catch { 
-                        Write-Error "ERROR: Failed getting commits since last tag. Error: $($_.Exception.Message)";
-                        Write-Warning "WARN: Proceeding with single commit information for release notes.";
+                        Write-Error "ERROR: Failed getting commits since last tag. Error: $($_.Exception.Message)"
+                        Write-Warning "WARN: Proceeding with single commit information for release notes."
                     }
-                    finally { Pop-Location; }
+                    finally { Pop-Location }
                 } else {
-                    Write-Output "INFO: No previous tags found. Using single commit information for release notes.";
+                    Write-Output "INFO: No previous tags found. Using single commit information for release notes."
                 }
 
-                Write-Output "INFO: Creating release notes content...";
-                $releaseNotes = "# CSVGenerator v$fileVersion (Test Build)" + [Environment]::NewLine;
-                $releaseNotes += "Build Date: $buildTime" + [Environment]::NewLine;
-                $releaseNotes += "SHA256: $sha256 ($($exeFile.Name))" + [Environment]::NewLine;
-                $releaseNotes += [Environment]::NewLine;
-                $releaseNotes += "## Details / Changes" + [Environment]::NewLine;
-                $releaseNotes += $releaseNotesBody;
-                $releaseNotesFilePath = Join-Path $stagingDir "release-notes.md";
-                Write-Output "INFO: Writing release notes to: $releaseNotesFilePath";
-                Set-Content -Path $releaseNotesFilePath -Value $releaseNotes;
-                Write-Output "INFO: Release notes written.";
+                Write-Output "INFO: Creating release notes content..."
+                $releaseNotes = "# CSVGenerator v$fileVersion (Test Build)" + [Environment]::NewLine
+                $releaseNotes += "Build Date: $buildTime" + [Environment]::NewLine
+                $releaseNotes += "SHA256: $sha256 ($($exeFile.Name))" + [Environment]::NewLine
+                $releaseNotes += [Environment]::NewLine
+                $releaseNotes += "## Details / Changes" + [Environment]::NewLine 
+                $releaseNotes += $releaseNotesBody
+                $releaseNotesFilePath = Join-Path $stagingDir "release-notes.md"
+                Write-Output "INFO: Writing release notes to: $releaseNotesFilePath"
+                Set-Content -Path $releaseNotesFilePath -Value $releaseNotes
+                Write-Output "INFO: Release notes written."
                 
-                Write-Output "INFO: Setting GitHub Action outputs...";
-                $outputVersion = "version=$fileVersion"; $outputReleaseNotesPath = "release_notes_path=$releaseNotesFilePath"; $outputAssetsPath = "assets_path=$stagingDir";
-                Write-Output "INFO: Output to GITHUB_OUTPUT: $outputVersion"; echo $outputVersion >> $env:GITHUB_OUTPUT;
-                Write-Output "INFO: Output to GITHUB_OUTPUT: $outputReleaseNotesPath"; echo $outputReleaseNotesPath >> $env:GITHUB_OUTPUT;
-                Write-Output "INFO: Output to GITHUB_OUTPUT: $outputAssetsPath"; echo $outputAssetsPath >> $env:GITHUB_OUTPUT;
+                Write-Output "INFO: Setting GitHub Action outputs..."
+                $outputVersion = "version=$fileVersion"; $outputReleaseNotesPath = "release_notes_path=$releaseNotesFilePath"; $outputAssetsPath = "assets_path=$stagingDir"
+                Write-Output "INFO: Output to GITHUB_OUTPUT: $outputVersion"; echo $outputVersion >> $env:GITHUB_OUTPUT
+                Write-Output "INFO: Output to GITHUB_OUTPUT: $outputReleaseNotesPath"; echo $outputReleaseNotesPath >> $env:GITHUB_OUTPUT
+                Write-Output "INFO: Output to GITHUB_OUTPUT: $outputAssetsPath"; echo $outputAssetsPath >> $env:GITHUB_OUTPUT
                 
-                Write-Output "INFO: Release version (output check): $fileVersion";
-                Write-Output "INFO: Staging directory for release assets (output check): $stagingDir";
-                Write-Output "INFO: Script logic completed successfully. Attempting explicit exit 0.";
-                exit 0;
-            } else { Write-Error "FATAL_ERROR: Main executable (CSVGenerator.exe) not found in $publishDir!"; exit 1; }
+                Write-Output "INFO: Release version (output check): $fileVersion"
+                Write-Output "INFO: Staging directory for release assets (output check): $stagingDir"
+                Write-Output "INFO: Script logic completed successfully. Attempting explicit exit 0."
+                exit 0 
+            } else { Write-Error "FATAL_ERROR: Main executable (CSVGenerator.exe) not found in $publishDir!"; exit 1 }
         } catch {
-            Write-Error "FATAL_ERROR in 'Prepare Release Assets and Metadata' step. Error: $($_.Exception.ToString())";
-            Write-Error "Failed at line: $($_.InvocationInfo.ScriptLineNumber)"; exit 1;
+            Write-Error "FATAL_ERROR in 'Prepare Release Assets and Metadata' step. Error: $($_.Exception.ToString())" 
+            Write-Error "Failed at line: $($_.InvocationInfo.ScriptLineNumber)"; exit 1 
         }
       shell: pwsh
       
@@ -309,11 +302,11 @@ jobs:
     - name: List directory structure (Post-Build Debugging)
       if: ${{ always() }} 
       run: |
-        Write-Output "GITHUB_WORKSPACE (from github context): ${{ github.workspace }}";
-        Write-Output "GITHUB_WORKSPACE (from env context): $env:GITHUB_WORKSPACE";
-        Write-Output "Workspace root structure (using $env:GITHUB_WORKSPACE):";
-        Get-ChildItem -Path $env:GITHUB_WORKSPACE -Recurse -Depth 4 | Select-Object FullName, Length, LastWriteTime;
-        Write-Output "Contents of publish_output directory:";
-        Get-ChildItem -Path (Join-Path $env:GITHUB_WORKSPACE "publish_output" "net48_win-x64") -Recurse -ErrorAction SilentlyContinue | Select-Object FullName, Length, LastWriteTime;
-        Write-Output "Contents of release_staging directory:";
-        Get-ChildItem -Path (Join-Path $env:GITHUB_WORKSPACE "release_staging") -Recurse -ErrorAction SilentlyContinue | Select-Object FullName, Length, LastWriteTime;
+        Write-Output "GITHUB_WORKSPACE (from github context): ${{ github.workspace }}"
+        Write-Output "GITHUB_WORKSPACE (from env context): $env:GITHUB_WORKSPACE"
+        Write-Output "Workspace root structure (using $env:GITHUB_WORKSPACE):"
+        Get-ChildItem -Path $env:GITHUB_WORKSPACE -Recurse -Depth 4 | Select-Object FullName, Length, LastWriteTime
+        Write-Output "Contents of publish_output directory:"
+        Get-ChildItem -Path (Join-Path $env:GITHUB_WORKSPACE "publish_output" "net48_win-x64") -Recurse -ErrorAction SilentlyContinue | Select-Object FullName, Length, LastWriteTime
+        Write-Output "Contents of release_staging directory:"
+        Get-ChildItem -Path (Join-Path $env:GITHUB_WORKSPACE "release_staging") -Recurse -ErrorAction SilentlyContinue | Select-Object FullName, Length, LastWriteTime
