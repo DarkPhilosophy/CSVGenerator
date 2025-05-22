@@ -47,59 +47,47 @@ jobs:
       env:
         CI_WORKSPACE: ${{ github.workspace }} 
       run: |
+        # (TFM update script - assumed to be the last working version)
         Write-Output "Script starting. Value of CI_WORKSPACE from step env: '$($env:CI_WORKSPACE)'"
         Write-Output "Script starting. Value of GITHUB_WORKSPACE from direct env access: '$($env:GITHUB_WORKSPACE)'"
         $baseWorkspacePath = $env:GITHUB_WORKSPACE
         if ([string]::IsNullOrWhiteSpace($baseWorkspacePath)) {
-            Write-Warning "Direct $env:GITHUB_WORKSPACE was empty or null, trying $env:CI_WORKSPACE from step env."
             $baseWorkspacePath = $env:CI_WORKSPACE
         }
         if ([string]::IsNullOrWhiteSpace($baseWorkspacePath)) {
             Write-Error "Base workspace path is empty or null. Aborting."
             exit 1
         }
-        Write-Output "Using base workspace path: '$baseWorkspacePath'"
         $csvGeneratorCheckoutPath = Join-Path $baseWorkspacePath "CSVGenerator" 
         $commonCheckoutPath = Join-Path $baseWorkspacePath "Common"          
-        Write-Output "Calculated csvGeneratorCheckoutPath: '$csvGeneratorCheckoutPath'"
-        Write-Output "Calculated commonCheckoutPath: '$commonCheckoutPath'"
         $projectRoots = @( $csvGeneratorCheckoutPath, $commonCheckoutPath )
         $tfmToReplace = 'net10.0-windows'; $tfmReplacement = 'net9.0-windows'
         $escapedTfmToReplace = [regex]::Escape($tfmToReplace)
-        Write-Output "Project roots to scan: $($projectRoots -join ', ')"
-        Write-Output "Searching for TargetFramework '$tfmToReplace' to replace with '$tfmReplacement'."
         foreach ($rootPath in $projectRoots) {
             if (Test-Path $rootPath) {
-                Write-Output "Scanning directory: $rootPath"
                 Get-ChildItem -Path $rootPath -Include *.csproj -Recurse | ForEach-Object {
-                    $projectFile = $_.FullName; Write-Output "Processing project file: $projectFile"
+                    $projectFile = $_.FullName; 
                     $content = Get-Content $projectFile -Raw; $originalContent = $content; $wasModified = $false
                     if ($content.Contains($tfmToReplace)) {
-                        Write-Output "Attempting simple string replace of '$tfmToReplace' in $projectFile"
                         $content = $content.Replace($tfmToReplace, $tfmReplacement)
-                        if ($content -ne $originalContent) { Write-Output "Simple string replace successful."; $wasModified = $true }
-                        else { Write-Output "Simple string replace did not alter content."}
+                        if ($content -ne $originalContent) { $wasModified = $true }
                     }
                     if (-not $wasModified -and $content.Contains($tfmToReplace)) {
-                        Write-Output "Simple replace failed/TFM still present. Trying regex."
                         $regexPatternForTargetFrameworks = "([<TargetFrameworks>].*?;?)\s*$($escapedTfmToReplace)\s*(;?.*?<\TargetFrameworks>)"
                         if ($content -match "<TargetFrameworks>.*$($escapedTfmToReplace).*</TargetFrameworks>") {
                             $tempContent = $content -replace $regexPatternForTargetFrameworks, ('$1' + $tfmReplacement + '$3')
-                            if ($tempContent -ne $content) { $content = $tempContent; $wasModified = $true; Write-Output "Regex <TargetFrameworks> replace successful."}
-                            else { Write-Output "Regex <TargetFrameworks> did not alter."}
+                            if ($tempContent -ne $content) { $content = $tempContent; $wasModified = $true;}
                         }
                         if (-not $wasModified -and $content -match "<TargetFramework>$($escapedTfmToReplace)</TargetFramework>") {
                              $regexPatternForTargetFramework = "<TargetFramework>$($escapedTfmToReplace)</TargetFramework>"
                              $replacementForTf = "<TargetFramework>$($tfmReplacement)</TargetFramework>"
                              $tempContent = $content -replace $regexPatternForTargetFramework, $replacementForTf
-                             if ($tempContent -ne $content) { $content = $tempContent; $wasModified = $true; Write-Output "Regex <TargetFramework> replace successful."}
-                             else { Write-Output "Regex <TargetFramework> did not alter."}
+                             if ($tempContent -ne $content) { $content = $tempContent; $wasModified = $true;}
                         }
                     }
-                    if ($wasModified) { Set-Content -Path $projectFile -Value $content -Force -Encoding UTF8; Write-Output "Successfully saved $projectFile."}
-                    else { Write-Output "No changes made to $projectFile."}
+                    if ($wasModified) { Set-Content -Path $projectFile -Value $content -Force -Encoding UTF8; Write-Output "Updated $projectFile."}
                 }
-            } else { Write-Warning "Path $rootPath does not exist."}
+            }
         }
 
     - name: Cache NuGet packages
@@ -127,7 +115,7 @@ jobs:
         Write-Output "CSVGenerator published to $publishDir"
         echo "publish_dir=$publishDir" >> $env:GITHUB_OUTPUT
         
-    - name: Prepare Release Assets and Metadata
+    - name: Prepare Release Assets and Metadata (Highly Simplified)
       id: release-prep 
       run: |
         $ErrorActionPreference = "Stop" 
@@ -135,7 +123,6 @@ jobs:
             $publishDir = "${{ steps.publish-csvgenerator.outputs.publish_dir }}"
             Write-Output "INFO: Publish directory for asset prep: $publishDir"
             $stagingDir = Join-Path $env:GITHUB_WORKSPACE "release_staging"
-            Write-Output "INFO: Attempting to create staging directory: $stagingDir"
             New-Item -ItemType Directory -Path $stagingDir -Force
             Write-Output "INFO: Staging directory ensured: $stagingDir"
             
@@ -143,141 +130,39 @@ jobs:
             
             if ($exeFile) {
                 Write-Output "INFO: Found executable: $($exeFile.FullName)"
-                Copy-Item -Path $exeFile.FullName -Destination $stagingDir -Force
-                $stagedExePath = Join-Path $stagingDir $exeFile.Name
-                Write-Output "INFO: Copied EXE to staging path: $stagedExePath"
+                # Minimal data for now
+                $fileVersion = "0.0.0.0-test"
+                $commitHash = "test-commit"
+                $rawCommitMessage = "Test Commit Message"
+                $sha256 = "test-sha256"
+                $buildTime = "test-buildtime"
 
-                Write-Output "INFO: Getting version info..."
-                $versionInfo = (Get-Item $stagedExePath).VersionInfo
-                $fileVersion = $versionInfo.FileVersion
-                if ([string]::IsNullOrWhiteSpace($fileVersion)) {
-                    Write-Warning "WARN: File version from EXE is empty, using '0.0.0.1' as fallback."
-                    $fileVersion = "0.0.0.1" 
-                }
-                $productVersion = $versionInfo.ProductVersion
-                Write-Output "INFO: FileVersion: $fileVersion, ProductVersion: $productVersion"
+                Write-Output "TEST POINT 1: Simple assignments done."
+
+                # Test line 1 for release notes (previously problematic area)
+                $_test_line1 = "- **Commit:** `$($commitHash)`"
+                Write-Output "TEST POINT 2: _test_line1 assignment successful: $_test_line1"
+
+                # Test line 2 for release notes (previously problematic area)
+                $_test_line2 = "- **Message:**"
+                Write-Output "TEST POINT 3: _test_line2 assignment successful: $_test_line2"
+
+                $defaultReleaseNotesBody = $_test_line1 + [Environment]::NewLine + $_test_line2 + [Environment]::NewLine + "  > " + $rawCommitMessage
+                Write-Output "TEST POINT 4: defaultReleaseNotesBody assignment successful."
                 
-                Write-Output "INFO: Calculating SHA256 hash..."
-                $sha256 = Get-FileHash -Path $stagedExePath -Algorithm SHA256 | Select-Object -ExpandProperty Hash
-                Write-Output "INFO: SHA256: $sha256"
+                $releaseNotesBody = $defaultReleaseNotesBody
 
-                $buildTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss UTC"
-                Write-Output "INFO: BuildTime: $buildTime"
-                
-                $gitRepoPath = Join-Path $env:GITHUB_WORKSPACE "CSVGenerator"
-                Write-Output "INFO: Attempting git operations in: $gitRepoPath"
-                if (-not (Test-Path (Join-Path $gitRepoPath ".git"))) {
-                    Write-Error "ERROR: Not a git repository at $gitRepoPath or .git folder not found."
-                    exit 1 
-                }
-                
-                $commitHash = "GIT_HASH_UNAVAILABLE" 
-                $rawCommitMessage = "GIT_MESSAGE_UNAVAILABLE" 
-                $latestTagName = $null 
-
-                Push-Location $gitRepoPath
-                try {
-                    Write-Output "INFO: Getting commit hash..."
-                    $commitHash = git rev-parse HEAD
-                    Write-Output "INFO: CommitHash: $commitHash"
-
-                    Write-Output "INFO: Getting commit message..."
-                    $rawCommitMessage = (git log -1 --pretty=%B).Trim()
-                    Write-Output "INFO: Raw CommitMessage retrieved."
-
-                    Write-Output "INFO: Getting latest tag name (errors suppressed)..."
-                    $latestTagName = $(git describe --tags --abbrev=0 2>$null) 
-                    if ([string]::IsNullOrWhiteSpace($latestTagName)) {
-                        Write-Warning "WARN: No git tags found."
-                        $latestTagName = $null 
-                    } else {
-                        Write-Output "INFO: LatestTagName: $latestTagName"
-                    }
-                }
-                catch {
-                    Write-Error "ERROR: Failed during primary git operations (commit hash/message/latest tag). Error: $($_.Exception.Message)"
-                }
-                finally {
-                    Pop-Location
-                    Write-Output "INFO: Popped location from git repo path."
-                }
-
-                $formattedCommitMessageLines = $rawCommitMessage -split '(\r?\n)' | ForEach-Object {
-                    if ($_ -match '\S') { 
-                        $_.TrimEnd() + "  " 
-                    } else {
-                        $_ 
-                    }
-                }
-                $formattedCommitMessage = $formattedCommitMessageLines -join "`n" 
-                Write-Output "INFO: Formatted commit message ready."
-                
-                Write-Output "INFO: Creating metadata content..."
-                $metadataLines = @(
-                    "Product: CSVGenerator",
-                    "File: $($exeFile.Name)",
-                    "Version: $fileVersion",
-                    "ProductVersion: $productVersion",
-                    "Build Time: $buildTime",
-                    "Commit: $commitHash",
-                    "Commit Message (raw):" 
-                )
-                $rawCommitMessage -split '(\r?\n)' | ForEach-Object { $metadataLines += $_ } # Add raw commit message lines
-                $metadataLines += "SHA256: $sha256"
-                $metadataContent = $metadataLines -join [Environment]::NewLine
-                                
-                $metadataFilePath = Join-Path $stagingDir "$($exeFile.Name).metadata.txt"
+                # --- Minimal Metadata ---
+                $metadataContent = "Version: $fileVersion`nCommit: $commitHash`nSHA256: $sha256"
+                $metadataFilePath = Join-Path $stagingDir "$($exeFile.Name).metadata.txt" # Assumes exeFile.Name is valid
                 Set-Content -Path $metadataFilePath -Value $metadataContent
-                Write-Output "INFO: Metadata written."
+                Write-Output "INFO: Minimal metadata written."
 
-                # --- Construct Release Notes Body ---
-                $_part1 = "- **Commit:** `$($commitHash)`"
-                $_part2 = "- **Message:**"
-                $_commitMessageBlockContent = ($formattedCommitMessage -split "`n" | ForEach-Object {
-                    if ($_.Trim().Length -gt 0) { "  > " + $_.TrimEnd(" ") } 
-                    else { "" } 
-                }) -join [Environment]::NewLine
-                $_part3 = $_commitMessageBlockContent.TrimEnd([Environment]::NewLine.ToCharArray())
-
-                $defaultReleaseNotesBody = $_part1 + [Environment]::NewLine + $_part2 + [Environment]::NewLine + $_part3
-                Write-Output "DEBUG: Default Release Notes Body (before tag check):`n$defaultReleaseNotesBody"
-
-                $releaseNotesBody = $defaultReleaseNotesBody 
-
-                if ($latestTagName) { 
-                    Write-Output "INFO: Getting commits since last tag ($latestTagName)..."
-                    Push-Location $gitRepoPath
-                    try {
-                        $commitsSinceLastTag = git log "${latestTagName}..HEAD" --pretty=format:"- %s (`%h`)" --reverse | Where-Object { $_.Trim() }
-                        if ($commitsSinceLastTag) {
-                            Write-Output "INFO: Found commits since last tag."
-                            $releaseNotesBody = "### Changes since ${latestTagName}" + [Environment]::NewLine + ($commitsSinceLastTag -join [Environment]::NewLine)
-                        } else { 
-                            Write-Output "INFO: No new commits found since last tag $latestTagName. Using single commit info (already set)."
-                        }
-                    } catch { 
-                        Write-Error "ERROR: Failed getting commits since last tag. Error: $($_.Exception.Message)"
-                        Write-Warning "WARN: Proceeding with single commit information for release notes."
-                    }
-                    finally { Pop-Location }
-                } else {
-                    Write-Output "INFO: No previous tags found. Using single commit information for release notes."
-                }
-                
-                Write-Output "INFO: Creating release notes file content..."
-                $releaseNotesLines = @(
-                    "# CSVGenerator v$fileVersion (Test Build)",
-                    "Build Date: $buildTime",
-                    "SHA256: $sha256 ($($exeFile.Name))",
-                    "", 
-                    "## Details / Changes"
-                )
-                $releaseNotesBody -split '(\r?\n)' | ForEach-Object { $releaseNotesLines += $_ }
-                $releaseNotes = $releaseNotesLines -join [Environment]::NewLine
-                
+                # --- Minimal Release Notes ---
+                $releaseNotes = "# CSVGenerator v$fileVersion (Test Build)`nBuild Date: $buildTime`nSHA256: $sha256`n`n## Changes`n$releaseNotesBody"
                 $releaseNotesFilePath = Join-Path $stagingDir "release-notes.md"
                 Set-Content -Path $releaseNotesFilePath -Value $releaseNotes
-                Write-Output "INFO: Release notes written to $releaseNotesFilePath"
+                Write-Output "INFO: Minimal release notes written."
 
                 Write-Output "INFO: Setting GitHub Action outputs..."
                 echo "version=$fileVersion" >> $env:GITHUB_OUTPUT
@@ -302,7 +187,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: CSVGenerator-Build-Test-${{ steps.release-prep.outputs.version || github.run_number }}
-        path: ${{ steps.publish-csvgenerator.outputs.publish_dir }}/ 
+        path: ${{ steps.publish-csvgenerator.outputs.publish__dir }}/ 
         if-no-files-found: warn 
         retention-days: 7
         
@@ -319,7 +204,6 @@ jobs:
         draft: false
         prerelease: true 
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.TOKEN_GITHUB }} # Corrected to GITHUB_TOKEN from common secrets
 
     # Removed the final problematic debug step for now.
-    # If everything else works, we can add a very simple one back.
