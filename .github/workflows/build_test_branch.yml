@@ -254,13 +254,23 @@ jobs:
                 Write-Output "INFO: Release notes written."
                 
                 Write-Output "INFO: Setting GitHub Action outputs..."
-                echo "version=$fileVersion" >> $env:GITHUB_OUTPUT
-                echo "release_notes_path=$releaseNotesFilePath" >> $env:GITHUB_OUTPUT
-                echo "assets_path=$stagingDir" >> $env:GITHUB_OUTPUT
+                $outputVersion = "version=$fileVersion"
+                $outputReleaseNotesPath = "release_notes_path=$releaseNotesFilePath"
+                $outputAssetsPath = "assets_path=$stagingDir"
+
+                Write-Output "INFO: Output to GITHUB_OUTPUT: $outputVersion"
+                echo $outputVersion >> $env:GITHUB_OUTPUT
+
+                Write-Output "INFO: Output to GITHUB_OUTPUT: $outputReleaseNotesPath"
+                echo $outputReleaseNotesPath >> $env:GITHUB_OUTPUT
+
+                Write-Output "INFO: Output to GITHUB_OUTPUT: $outputAssetsPath"
+                echo $outputAssetsPath >> $env:GITHUB_OUTPUT
                 
-                Write-Output "INFO: Release version (output): $fileVersion"
-                Write-Output "INFO: Staging directory for release assets (output): $stagingDir"
-                Write-Output "INFO: Script completed successfully."
+                Write-Output "INFO: Release version (output check): $fileVersion"
+                Write-Output "INFO: Staging directory for release assets (output check): $stagingDir"
+                Write-Output "INFO: Script logic completed successfully. Attempting explicit exit 0."
+                exit 0 # Explicitly exit with success code
             } else {
                 Write-Error "FATAL_ERROR: Main executable (CSVGenerator.exe) not found in $publishDir!"
                 exit 1 
