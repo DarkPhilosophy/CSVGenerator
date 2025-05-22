@@ -72,7 +72,7 @@ jobs:
                         $content = $content.Replace($tfmToReplace, $tfmReplacement)
                         if ($content -ne $originalContent) { $wasModified = $true }
                     }
-                    if (-not $wasModified -and $content.Contains($tfmToReplace)) { # Corrected typo here from previous version
+                    if (-not $wasModified -and $content.Contains($tfmToReplace)) { 
                         $regexPatternForTargetFrameworks = "([<TargetFrameworks>].*?;?)\s*$($escapedTfmToReplace)\s*(;?.*?<\TargetFrameworks>)"
                         if ($content -match "<TargetFrameworks>.*$($escapedTfmToReplace).*</TargetFrameworks>") {
                             $tempContent = $content -replace $regexPatternForTargetFrameworks, ('$1' + $tfmReplacement + '$3')
@@ -115,46 +115,45 @@ jobs:
         Write-Output "CSVGenerator published to $publishDir"
         echo "publish_dir=$publishDir" >> $env:GITHUB_OUTPUT
         
-    - name: Prepare Release Assets and Metadata (Echo Chamber Test)
+    - name: Prepare Release Assets and Metadata (Minimal Parser Test)
       id: release-prep 
       run: |
         $ErrorActionPreference = "Stop"
-        Write-Output "--- Starting Super Simplified Script ---"
+        Write-Output "--- Starting Minimal Parser Test Script ---"
 
-        try {
-            Write-Output "Attempting assignment for _part1..."
-            $_part1 = "- **Commit:** `somehash`" 
-            Write-Output "SUCCESS: _part1 assigned: $_part1"
+        # Test variable for hash
+        $commitHashForTest = "somehash123" 
+        Write-Output "DEBUG: commitHashForTest = $commitHashForTest"
 
-            Write-Output "Attempting assignment for _part2..."
-            $_part2 = "- **Message:**" # THE PROBLEMATIC LINE
-            Write-Output "SUCCESS: _part2 assigned: $_part2"
-            
-            # Dummy outputs so subsequent steps don't fail immediately
-            $fileVersion = "isolated-test"
-            $stagingDir = Join-Path $env:GITHUB_WORKSPACE "release_staging_echotest" # Different name
-            New-Item -ItemType Directory -Path $stagingDir -Force
-            $relativeStagingDir = "release_staging_echotest"
-            $releaseNotesFilePath = Join-Path $stagingDir "release-notes.md"
-            Set-Content -Path $releaseNotesFilePath -Value "Test content for release notes." -Force
-            
-            # Create dummy assets for the release action if needed
-            Set-Content -Path (Join-Path $stagingDir "CSVGenerator.exe") -Value "dummy exe content" -Force
-            Set-Content -Path (Join-Path $stagingDir "CSVGenerator.exe.metadata.txt") -Value "dummy metadata content" -Force
+        # Line that often seemed to be just before parser errors manifested for subsequent lines
+        $_test_line1 = "- **Commit:** `$($commitHashForTest)`" # Keeping $() for robustness
+        Write-Output "DEBUG: _test_line1 = $_test_line1"
 
+        # The line that has been consistently failing with parser errors
+        $_test_line2 = "- **Message:**" 
+        Write-Output "DEBUG: _test_line2 = $_test_line2"
 
-            echo "version=$fileVersion" >> $env:GITHUB_OUTPUT
-            echo "release_notes_path=$(Join-Path $relativeStagingDir "release-notes.md")" >> $env:GITHUB_OUTPUT
-            echo "assets_path=$relativeStagingDir" >> $env:GITHUB_OUTPUT
+        Write-Output "Minimal Parser Test Script finished successfully."
 
-            Write-Output "Super simplified script finished successfully."
-            exit 0
+        # Dummy outputs so subsequent steps don't fail immediately
+        $fileVersion = "minimal-parser-test"
+        $stagingDir = Join-Path $env:GITHUB_WORKSPACE "release_staging_minimal_parser"
+        New-Item -ItemType Directory -Path $stagingDir -Force
+        $relativeStagingDir = "release_staging_minimal_parser"
+        $releaseNotesFilePath = Join-Path $stagingDir "release-notes.md"
+        Set-Content -Path $releaseNotesFilePath -Value "Test content for release notes." -Force
+        
+        # Create dummy assets for the release action if needed
+        $dummyExePath = Join-Path $stagingDir "CSVGenerator.exe"
+        Set-Content -Path $dummyExePath -Value "dummy exe content" -Force
+        $dummyMetadataPath = Join-Path $stagingDir "CSVGenerator.exe.metadata.txt"
+        Set-Content -Path $dummyMetadataPath -Value "dummy metadata content" -Force
 
-        } catch {
-            Write-Error "FATAL_ERROR in simplified script: $($_.Exception.ToString())"
-            Write-Error "Failed at line: $($_.InvocationInfo.ScriptLineNumber)"
-            exit 1
-        }
+        echo "version=$fileVersion" >> $env:GITHUB_OUTPUT
+        echo "release_notes_path=$(Join-Path $relativeStagingDir "release-notes.md")" >> $env:GITHUB_OUTPUT
+        echo "assets_path=$relativeStagingDir" >> $env:GITHUB_OUTPUT
+
+        exit 0
       shell: pwsh
       
     - name: Upload Build Artifact (for debugging/retention)
@@ -162,8 +161,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: CSVGenerator-Build-Test-${{ steps.release-prep.outputs.version || github.run_number }}
-        # Path might not exist if above fails, so make it conditional or warn
-        path: ${{ steps.publish-csvgenerator.outputs.publish_dir }}/ 
+        path: ${{ steps.publish-csvgenerator.outputs.publish_dir }}/ # This path might not exist if publish step fails
         if-no-files-found: warn 
         retention-days: 7
         
@@ -181,3 +179,5 @@ jobs:
         prerelease: true 
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    # No final debug step
