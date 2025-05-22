@@ -122,8 +122,8 @@ jobs:
         try {
             $publishDir = "${{ steps.publish-csvgenerator.outputs.publish_dir }}"
             Write-Output "INFO: Publish directory for asset prep: $publishDir"
-            $stagingDir = Join-Path $env:GITHUB_WORKSPACE "release_staging" # This is an absolute path
-            $relativeStagingDir = "release_staging" # This is relative to GITHUB_WORKSPACE
+            $stagingDir = Join-Path $env:GITHUB_WORKSPACE "release_staging" 
+            $relativeStagingDir = "release_staging" 
             Write-Output "INFO: Attempting to create staging directory: $stagingDir"
             New-Item -ItemType Directory -Path $stagingDir -Force
             Write-Output "INFO: Staging directory ensured: $stagingDir"
@@ -202,23 +202,25 @@ jobs:
                 Write-Output "INFO: Formatted commit message ready."
                 
                 Write-Output "INFO: Creating metadata content..."
-                $metadataContent = @"
-Product: CSVGenerator
-File: $($exeFile.Name)
-Version: $fileVersion
-ProductVersion: $productVersion
-Build Time: $buildTime
-Commit: $commitHash
-Commit Message (raw):
-$rawCommitMessage
-SHA256: $sha256
-"@ 
+                $metadataLines = @(
+                    "Product: CSVGenerator",
+                    "File: $($exeFile.Name)",
+                    "Version: $fileVersion",
+                    "ProductVersion: $productVersion",
+                    "Build Time: $buildTime",
+                    "Commit: $commitHash",
+                    "Commit Message (raw):"
+                )
+                $rawCommitMessage -split '(\r?\n)' | ForEach-Object { $metadataLines += $_.TrimEnd() }
+                $metadataLines += "SHA256: $sha256"
+                $metadataContent = $metadataLines -join [Environment]::NewLine
+                                
                 $metadataFilePath = Join-Path $stagingDir "$($exeFile.Name).metadata.txt"
                 Set-Content -Path $metadataFilePath -Value $metadataContent
                 Write-Output "INFO: Metadata written."
 
                 # --- Construct Release Notes Body ---
-                $_part1 = "- **Commit:** `$($commitHash)`" # Using $() for robustness
+                $_part1 = "- **Commit:** `$($commitHash)`"
                 $_part2 = "- **Message:**"
                 $_commitMessageBlockContent = ($formattedCommitMessage -split "`n" | ForEach-Object {
                     if ($_.Trim().Length -gt 0) { "  > " + $_.TrimEnd(" ") } 
@@ -252,24 +254,26 @@ SHA256: $sha256
                 }
                 
                 Write-Output "INFO: Creating release notes file content..."
-                $releaseNotes = @"
-# CSVGenerator v$fileVersion (Test Build)
-Build Date: $buildTime
-SHA256: $sha256 ($($exeFile.Name))
-
-## Details / Changes
-$releaseNotesBody
-"@
-                $releaseNotesFilePath = Join-Path $stagingDir "release-notes.md" # Absolute path for Set-Content
-                $relativeReleaseNotesPath = Join-Path $relativeStagingDir "release-notes.md" # Relative for GITHUB_OUTPUT
+                $releaseNotesLines = @(
+                    "# CSVGenerator v$fileVersion (Test Build)",
+                    "Build Date: $buildTime",
+                    "SHA256: $sha256 ($($exeFile.Name))",
+                    "", 
+                    "## Details / Changes"
+                )
+                $releaseNotesBody -split '(\r?\n)' | ForEach-Object { $releaseNotesLines += $_.TrimEnd() }
+                $releaseNotes = $releaseNotesLines -join [Environment]::NewLine
+                
+                $releaseNotesFilePath = Join-Path $stagingDir "release-notes.md" 
+                $relativeReleaseNotesPath = Join-Path $relativeStagingDir "release-notes.md" 
 
                 Set-Content -Path $releaseNotesFilePath -Value $releaseNotes
                 Write-Output "INFO: Release notes written to $releaseNotesFilePath"
 
                 Write-Output "INFO: Setting GitHub Action outputs..."
                 echo "version=$fileVersion" >> $env:GITHUB_OUTPUT
-                echo "release_notes_path=$relativeReleaseNotesPath" >> $env:GITHUB_OUTPUT # Use relative path
-                echo "assets_path=$relativeStagingDir" >> $env:GITHUB_OUTPUT         # Use relative path
+                echo "release_notes_path=$relativeReleaseNotesPath" >> $env:GITHUB_OUTPUT 
+                echo "assets_path=$relativeStagingDir" >> $env:GITHUB_OUTPUT         
                 
                 Write-Output "INFO: Script logic completed successfully. Attempting explicit exit 0."
                 exit 0 
@@ -299,10 +303,9 @@ $releaseNotesBody
       with:
         name: Test Release - CSVGenerator v${{ steps.release-prep.outputs.version }}
         tag_name: test-v${{ steps.release-prep.outputs.version }}-${{ github.run_id }} 
-        body_path: ${{ steps.release-prep.outputs.release_notes_path }} # This should now be relative
-        # files should be relative to GITHUB_WORKSPACE or use wildcards within a relative assets_path
+        body_path: ${{ steps.release-prep.outputs.release_notes_path }}
         files: |
-          ${{ steps.release-prep.outputs.assets_path }}/CSVGenerator.exe 
+          ${{ steps.release-prep.outputs.assets_path }}/CSVGenerator.exe
           ${{ steps.release-prep.outputs.assets_path }}/CSVGenerator.exe.metadata.txt
         draft: false
         prerelease: true 
