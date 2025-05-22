@@ -214,18 +214,21 @@ jobs:
                 Write-Output "INFO: Metadata written."
                 
                 # Construct default release notes body (for single commit case)
-                $line1Default = "- **Commit:** `${commitHash}`" # Using ${} for clarity with backticks
+                $line1Default = "- **Commit:** `$($commitHash)`" # Corrected: Use $() for expression, or just $commitHash if simple
                 $line2Default = "- **Message:**"
                 
+                Write-Output "DEBUG: defaultReleaseNotesBody Line 1: $line1Default"
+                Write-Output "DEBUG: defaultReleaseNotesBody Line 2: $line2Default"
+
                 $defaultReleaseNotesBody = $line1Default + [Environment]::NewLine + $line2Default + [Environment]::NewLine
                 
                 $commitMessageBlock = ($formattedCommitMessage -split "`n" | ForEach-Object {
-                    if ($_.Trim().Length -gt 0) { "  > " + $_.TrimEnd(" ") } # Trim our added spaces from the end
-                    else { "" } # Skip fully blank lines from the source for the blockquote
+                    if ($_.Trim().Length -gt 0) { "  > " + $_.TrimEnd(" ") } 
+                    else { "" } 
                 }) -join [Environment]::NewLine
                 $defaultReleaseNotesBody += $commitMessageBlock.TrimEnd([Environment]::NewLine.ToCharArray())
 
-                $releaseNotesBody = $defaultReleaseNotesBody # Assume single commit info first
+                $releaseNotesBody = $defaultReleaseNotesBody 
 
                 if ($latestTagName) { 
                     Write-Output "INFO: Getting commits since last tag ($latestTagName)..."
@@ -263,7 +266,7 @@ jobs:
                 $outputVersion = "version=$fileVersion"; $outputReleaseNotesPath = "release_notes_path=$releaseNotesFilePath"; $outputAssetsPath = "assets_path=$stagingDir"
                 Write-Output "INFO: Output to GITHUB_OUTPUT: $outputVersion"; echo $outputVersion >> $env:GITHUB_OUTPUT
                 Write-Output "INFO: Output to GITHUB_OUTPUT: $outputReleaseNotesPath"; echo $outputReleaseNotesPath >> $env:GITHUB_OUTPUT
-                Write-Output "INFO: Output to GITHUB_OUTPUT: $outputAssetsPath"; echo $outputAssetsPath >> $env:GITHUB_OUTPUT
+                Write-Output "INFO: Output to Github_OUTPUT: $outputAssetsPath"; echo $outputAssetsPath >> $env:GITHUB_OUTPUT
                 
                 Write-Output "INFO: Release version (output check): $fileVersion"
                 Write-Output "INFO: Staging directory for release assets (output check): $stagingDir"
