@@ -21,7 +21,7 @@ jobs:
       uses: actions/checkout@v4
       with:
         path: CSVGenerator
-        fetch-depth: 0 # Still needed if we add git commands back
+        fetch-depth: 0 
 
     - name: Checkout Common library
       uses: actions/checkout@v4
@@ -29,7 +29,6 @@ jobs:
         repository: DarkPhilosophy/Common
         path: Common
         ref: test
-        # token: ${{ secrets.GITHUB_TOKEN }} 
 
     - name: Setup .NET SDK
       uses: actions/setup-dotnet@v4
@@ -48,6 +47,7 @@ jobs:
       env:
         CI_WORKSPACE: ${{ github.workspace }} 
       run: |
+        # ... (Full TFM update script - assumed to be the working one) ...
         Write-Output "Script starting. Value of CI_WORKSPACE from step env: '$($env:CI_WORKSPACE)'"
         Write-Output "Script starting. Value of GITHUB_WORKSPACE from direct env access: '$($env:GITHUB_WORKSPACE)'"
         $baseWorkspacePath = $env:GITHUB_WORKSPACE
@@ -102,8 +102,7 @@ jobs:
                 }
             } else { Write-Warning "Path $rootPath does not exist."}
         }
-      shell: pwsh
-      
+
     - name: Cache NuGet packages
       uses: actions/cache@v4
       with:
@@ -129,7 +128,7 @@ jobs:
         Write-Output "CSVGenerator published to $publishDir"
         echo "publish_dir=$publishDir" >> $env:GITHUB_OUTPUT
         
-    - name: Prepare Release Assets and Metadata (Simplified)
+    - name: Prepare Release Assets and Metadata (Re-introducing EXE Info)
       id: release-prep 
       run: |
         $ErrorActionPreference = "Stop" 
@@ -145,25 +144,59 @@ jobs:
             
             if ($exeFile) {
                 Write-Output "INFO: Found executable: $($exeFile.FullName)"
-                # --- MINIMAL PROCESSING ---
-                $fileVersion = "1.2.3.4" # Hardcoded for now
-                $commitHash = "dummyhash"
-                $rawCommitMessage = "Dummy commit message"
+                Copy-Item -Path $exeFile.FullName -Destination $stagingDir -Force
+                $stagedExePath = Join-Path $stagingDir $exeFile.Name
+                Write-Output "INFO: Copied EXE to staging path: $stagedExePath"
+
+                # --- Start Re-introducing Real Data (Part 1) ---
+                Write-Output "INFO: Getting version info..."
+                $versionInfo = (Get-Item $stagedExePath).VersionInfo
+                $fileVersion = $versionInfo.FileVersion
+                if ([string]::IsNullOrWhiteSpace($fileVersion)) {
+                    Write-Warning "WARN: File version from EXE is empty, using '0.0.0.1' as fallback."
+                    $fileVersion = "0.0.0.1" 
+                }
+                $productVersion = $versionInfo.ProductVersion
+                Write-Output "INFO: FileVersion: $fileVersion, ProductVersion: $productVersion"
                 
-                Write-Output "INFO: Creating metadata content (minimal)..."
-                $metadataContent = "Version: $fileVersion`nCommit: $commitHash" # Using `n for newline
-                $metadataFilePath = Join-Path $stagingDir "CSVGenerator.exe.metadata.txt"
+                Write-Output "INFO: Calculating SHA256 hash..."
+                $sha256 = Get-FileHash -Path $stagedExePath -Algorithm SHA256 | Select-Object -ExpandProperty Hash
+                Write-Output "INFO: SHA256: $sha256"
+
+                $buildTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss UTC"
+                Write-Output "INFO: BuildTime: $buildTime"
+                # --- End Re-introducing Real Data (Part 1) ---
+
+                # Use the real $fileVersion, but keep git stuff dummied for now
+                $commitHash = "dummyhash-from-step1" # Dummy
+                $rawCommitMessage = "Dummy commit message - step1" # Dummy
+                
+                Write-Output "INFO: Creating metadata content..."
+                $metadataContent = "Product: CSVGenerator" + [Environment]::NewLine
+                $metadataContent += "File: $($exeFile.Name)" + [Environment]::NewLine
+                $metadataContent += "Version: $fileVersion" + [Environment]::NewLine 
+                $metadataContent += "ProductVersion: $productVersion" + [Environment]::NewLine 
+                $metadataContent += "Build Time: $buildTime" + [Environment]::NewLine 
+                $metadataContent += "Commit: $commitHash" + [Environment]::NewLine 
+                $metadataContent += "Commit Message (raw):`n$rawCommitMessage" + [Environment]::NewLine 
+                $metadataContent += "SHA256: $sha256" 
+                $metadataFilePath = Join-Path $stagingDir "$($exeFile.Name).metadata.txt"
                 Set-Content -Path $metadataFilePath -Value $metadataContent
                 Write-Output "INFO: Metadata written."
 
-                Write-Output "INFO: Creating release notes (minimal)..."
-                $releaseNotesBody = "- Commit: $commitHash`n- Message: $rawCommitMessage" # Using `n
-                $releaseNotes = "# CSVGenerator v$fileVersion (Test Build)`n$releaseNotesBody" # Using `n
+                Write-Output "INFO: Creating release notes..."
+                # Use backticks for newlines for simplicity in this test
+                $releaseNotesBody = "- Commit: $commitHash`n- Message: $rawCommitMessage" 
+                $releaseNotes = "# CSVGenerator v$fileVersion (Test Build)`n" 
+                $releaseNotes += "Build Date: $buildTime`n" 
+                $releaseNotes += "SHA256: $sha256 ($($exeFile.Name))`n`n" 
+                $releaseNotes += "## Details / Changes`n"
+                $releaseNotes += $releaseNotesBody
                 $releaseNotesFilePath = Join-Path $stagingDir "release-notes.md"
                 Set-Content -Path $releaseNotesFilePath -Value $releaseNotes
                 Write-Output "INFO: Release notes written."
 
-                Write-Output "INFO: Setting GitHub Action outputs (minimal)..."
+                Write-Output "INFO: Setting GitHub Action outputs..."
                 echo "version=$fileVersion" >> $env:GITHUB_OUTPUT
                 echo "release_notes_path=$releaseNotesFilePath" >> $env:GITHUB_OUTPUT
                 echo "assets_path=$stagingDir" >> $env:GITHUB_OUTPUT
