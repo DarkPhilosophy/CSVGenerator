@@ -47,7 +47,6 @@ jobs:
       env:
         CI_WORKSPACE: ${{ github.workspace }} 
       run: |
-        # (The TFM update script - assumed to be the last working version)
         Write-Output "Script starting. Value of CI_WORKSPACE from step env: '$($env:CI_WORKSPACE)'"
         Write-Output "Script starting. Value of GITHUB_WORKSPACE from direct env access: '$($env:GITHUB_WORKSPACE)'"
         $baseWorkspacePath = $env:GITHUB_WORKSPACE
