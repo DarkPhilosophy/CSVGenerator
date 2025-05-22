@@ -202,9 +202,14 @@ jobs:
             Set-Content -Path $metadataFilePath -Value $metadataContent
             Write-Output "INFO: Metadata written."
 
+            # --- Construct Release Notes Body (Ultra Simplified String for _part2) ---
             Write-Output "DEBUG: Constructing Release Notes Body..."
-            $_part1 = "- **Commit:** `$($commitHash)`"
-            $_part2 = "- **Message:**"
+            $_part1 = "- Commit: $($commitHash)" # Removed backticks for this test
+            Write-Output "DEBUG: _part1 = '$_part1'"
+
+            $simpleMessageString = "Message" # Ultra simple
+            $_part2 = "- $simpleMessageString" # Ultra simple
+            Write-Output "DEBUG: _part2 (ultra-simplified) = '$_part2'"
             
             $_commitMessageBlockContent = ""
             if (-not [string]::IsNullOrWhiteSpace($formattedCommitMessage)) {
@@ -282,4 +287,4 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    # No final debug step for this version to ensure YAML validity
+    # No final debug step
