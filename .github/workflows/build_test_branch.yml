@@ -115,14 +115,16 @@ jobs:
         Write-Output "CSVGenerator published to $publishDir"
         echo "publish_dir=$publishDir" >> $env:GITHUB_OUTPUT
         
-    - name: Prepare Release Assets and Metadata (Ultra Simplified Strings)
+    - name: Prepare Release Assets and Metadata
       id: release-prep 
       run: |
         $ErrorActionPreference = "Stop" 
         try {
             $publishDir = "${{ steps.publish-csvgenerator.outputs.publish_dir }}"
             Write-Output "INFO: Publish directory for asset prep: $publishDir"
-            $stagingDir = Join-Path $env:GITHUB_WORKSPACE "release_staging"
+            $stagingDir = Join-Path $env:GITHUB_WORKSPACE "release_staging" # This is an absolute path
+            $relativeStagingDir = "release_staging" # This is relative to GITHUB_WORKSPACE
+            Write-Output "INFO: Attempting to create staging directory: $stagingDir"
             New-Item -ItemType Directory -Path $stagingDir -Force
             Write-Output "INFO: Staging directory ensured: $stagingDir"
             
@@ -130,44 +132,144 @@ jobs:
             
             if ($exeFile) {
                 Write-Output "INFO: Found executable: $($exeFile.FullName)"
-                # Minimal data for now
-                $fileVersion = "0.0.0.0-test"
-                $commitHash = "test-commit"       # Simple string
-                $rawCommitMessage = "Test Commit Message"
-                $sha256 = "test-sha256"
-                $buildTime = "test-buildtime"
+                Copy-Item -Path $exeFile.FullName -Destination $stagingDir -Force
+                $stagedExePath = Join-Path $stagingDir $exeFile.Name
+                Write-Output "INFO: Copied EXE to staging path: $stagedExePath"
 
-                Write-Output "DEBUG: All initial dummy assignments complete."
-
-                # Test line 1 for release notes - NO BACKTICKS OR COMPLEX FORMATTING
-                $_test_line1 = "- Commit: $commitHash" 
-                Write-Output "DEBUG: _test_line1 assignment successful: $_test_line1"
-
-                # Test line 2 for release notes - NO COMPLEX FORMATTING
-                $_test_line2 = "- Message:" 
-                Write-Output "DEBUG: _test_line2 assignment successful: $_test_line2"
-
-                $defaultReleaseNotesBody = $_test_line1 + [Environment]::NewLine + $_test_line2 + [Environment]::NewLine + "  " + $rawCommitMessage # Simple indent
-                Write-Output "DEBUG: defaultReleaseNotesBody assignment successful."
+                Write-Output "INFO: Getting version info..."
+                $versionInfo = (Get-Item $stagedExePath).VersionInfo
+                $fileVersion = $versionInfo.FileVersion
+                if ([string]::IsNullOrWhiteSpace($fileVersion)) {
+                    Write-Warning "WARN: File version from EXE is empty, using '0.0.0.1' as fallback."
+                    $fileVersion = "0.0.0.1" 
+                }
+                $productVersion = $versionInfo.ProductVersion
+                Write-Output "INFO: FileVersion: $fileVersion, ProductVersion: $productVersion"
                 
-                $releaseNotesBody = $defaultReleaseNotesBody
+                Write-Output "INFO: Calculating SHA256 hash..."
+                $sha256 = Get-FileHash -Path $stagedExePath -Algorithm SHA256 | Select-Object -ExpandProperty Hash
+                Write-Output "INFO: SHA256: $sha256"
 
-                # --- Minimal Metadata ---
-                $metadataContent = "Version: $fileVersion`nCommit: $commitHash`nSHA256: $sha256"
-                $metadataFilePath = Join-Path $stagingDir "$($exeFile.Name).metadata.txt" 
+                $buildTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss UTC"
+                Write-Output "INFO: BuildTime: $buildTime"
+                
+                $gitRepoPath = Join-Path $env:GITHUB_WORKSPACE "CSVGenerator"
+                Write-Output "INFO: Attempting git operations in: $gitRepoPath"
+                if (-not (Test-Path (Join-Path $gitRepoPath ".git"))) {
+                    Write-Error "ERROR: Not a git repository at $gitRepoPath or .git folder not found."
+                    exit 1 
+                }
+                
+                $commitHash = "GIT_HASH_UNAVAILABLE" 
+                $rawCommitMessage = "GIT_MESSAGE_UNAVAILABLE" 
+                $latestTagName = $null 
+
+                Push-Location $gitRepoPath
+                try {
+                    Write-Output "INFO: Getting commit hash..."
+                    $commitHash = git rev-parse HEAD
+                    Write-Output "INFO: CommitHash: $commitHash"
+
+                    Write-Output "INFO: Getting commit message..."
+                    $rawCommitMessage = (git log -1 --pretty=%B).Trim()
+                    Write-Output "INFO: Raw CommitMessage retrieved."
+
+                    Write-Output "INFO: Getting latest tag name (errors suppressed)..."
+                    $latestTagName = $(git describe --tags --abbrev=0 2>$null) 
+                    if ([string]::IsNullOrWhiteSpace($latestTagName)) {
+                        Write-Warning "WARN: No git tags found."
+                        $latestTagName = $null 
+                    } else {
+                        Write-Output "INFO: LatestTagName: $latestTagName"
+                    }
+                }
+                catch {
+                    Write-Error "ERROR: Failed during primary git operations (commit hash/message/latest tag). Error: $($_.Exception.Message)"
+                }
+                finally {
+                    Pop-Location
+                    Write-Output "INFO: Popped location from git repo path."
+                }
+
+                $formattedCommitMessageLines = $rawCommitMessage -split '(\r?\n)' | ForEach-Object {
+                    if ($_ -match '\S') { 
+                        $_.TrimEnd() + "  " 
+                    } else {
+                        $_ 
+                    }
+                }
+                $formattedCommitMessage = $formattedCommitMessageLines -join "`n" 
+                Write-Output "INFO: Formatted commit message ready."
+                
+                Write-Output "INFO: Creating metadata content..."
+                $metadataContent = @"
+Product: CSVGenerator
+File: $($exeFile.Name)
+Version: $fileVersion
+ProductVersion: $productVersion
+Build Time: $buildTime
+Commit: $commitHash
+Commit Message (raw):
+$rawCommitMessage
+SHA256: $sha256
+"@ 
+                $metadataFilePath = Join-Path $stagingDir "$($exeFile.Name).metadata.txt"
                 Set-Content -Path $metadataFilePath -Value $metadataContent
-                Write-Output "INFO: Minimal metadata written."
+                Write-Output "INFO: Metadata written."
 
-                # --- Minimal Release Notes ---
-                $releaseNotes = "# CSVGenerator v$fileVersion (Test Build)`nBuild Date: $buildTime`nSHA256: $sha256`n`n## Changes`n$releaseNotesBody"
-                $releaseNotesFilePath = Join-Path $stagingDir "release-notes.md"
+                # --- Construct Release Notes Body ---
+                $_part1 = "- **Commit:** `$($commitHash)`" # Using $() for robustness
+                $_part2 = "- **Message:**"
+                $_commitMessageBlockContent = ($formattedCommitMessage -split "`n" | ForEach-Object {
+                    if ($_.Trim().Length -gt 0) { "  > " + $_.TrimEnd(" ") } 
+                    else { "" } 
+                }) -join [Environment]::NewLine
+                $_part3 = $_commitMessageBlockContent.TrimEnd([Environment]::NewLine.ToCharArray())
+
+                $defaultReleaseNotesBody = $_part1 + [Environment]::NewLine + $_part2 + [Environment]::NewLine + $_part3
+                Write-Output "DEBUG: Default Release Notes Body (before tag check):`n$defaultReleaseNotesBody"
+
+                $releaseNotesBody = $defaultReleaseNotesBody 
+
+                if ($latestTagName) { 
+                    Write-Output "INFO: Getting commits since last tag ($latestTagName)..."
+                    Push-Location $gitRepoPath
+                    try {
+                        $commitsSinceLastTag = git log "${latestTagName}..HEAD" --pretty=format:"- %s (`%h`)" --reverse | Where-Object { $_.Trim() }
+                        if ($commitsSinceLastTag) {
+                            Write-Output "INFO: Found commits since last tag."
+                            $releaseNotesBody = "### Changes since ${latestTagName}" + [Environment]::NewLine + ($commitsSinceLastTag -join [Environment]::NewLine)
+                        } else { 
+                            Write-Output "INFO: No new commits found since last tag $latestTagName. Using single commit info (already set)."
+                        }
+                    } catch { 
+                        Write-Error "ERROR: Failed getting commits since last tag. Error: $($_.Exception.Message)"
+                        Write-Warning "WARN: Proceeding with single commit information for release notes."
+                    }
+                    finally { Pop-Location }
+                } else {
+                    Write-Output "INFO: No previous tags found. Using single commit information for release notes."
+                }
+                
+                Write-Output "INFO: Creating release notes file content..."
+                $releaseNotes = @"
+# CSVGenerator v$fileVersion (Test Build)
+Build Date: $buildTime
+SHA256: $sha256 ($($exeFile.Name))
+
+## Details / Changes
+$releaseNotesBody
+"@
+                $releaseNotesFilePath = Join-Path $stagingDir "release-notes.md" # Absolute path for Set-Content
+                $relativeReleaseNotesPath = Join-Path $relativeStagingDir "release-notes.md" # Relative for GITHUB_OUTPUT
+
                 Set-Content -Path $releaseNotesFilePath -Value $releaseNotes
-                Write-Output "INFO: Minimal release notes written."
+                Write-Output "INFO: Release notes written to $releaseNotesFilePath"
 
                 Write-Output "INFO: Setting GitHub Action outputs..."
                 echo "version=$fileVersion" >> $env:GITHUB_OUTPUT
-                echo "release_notes_path=$releaseNotesFilePath" >> $env:GITHUB_OUTPUT
-                echo "assets_path=$stagingDir" >> $env:GITHUB_OUTPUT
+                echo "release_notes_path=$relativeReleaseNotesPath" >> $env:GITHUB_OUTPUT # Use relative path
+                echo "assets_path=$relativeStagingDir" >> $env:GITHUB_OUTPUT         # Use relative path
                 
                 Write-Output "INFO: Script logic completed successfully. Attempting explicit exit 0."
                 exit 0 
@@ -197,13 +299,14 @@ jobs:
       with:
         name: Test Release - CSVGenerator v${{ steps.release-prep.outputs.version }}
         tag_name: test-v${{ steps.release-prep.outputs.version }}-${{ github.run_id }} 
-        body_path: ${{ steps.release-prep.outputs.release_notes_path }}
+        body_path: ${{ steps.release-prep.outputs.release_notes_path }} # This should now be relative
+        # files should be relative to GITHUB_WORKSPACE or use wildcards within a relative assets_path
         files: |
-          ${{ steps.release-prep.outputs.assets_path }}/CSVGenerator.exe
+          ${{ steps.release-prep.outputs.assets_path }}/CSVGenerator.exe 
           ${{ steps.release-prep.outputs.assets_path }}/CSVGenerator.exe.metadata.txt
         draft: false
         prerelease: true 
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    # Removed the final problematic debug step for now.
+    # No final debug step for this version to ensure YAML validity
