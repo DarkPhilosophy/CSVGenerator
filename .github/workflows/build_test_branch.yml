@@ -320,11 +320,25 @@ $releaseNotesBody
     - name: List directory structure (Post-Build Debugging)
       if: ${{ always() }} 
       run: |
-        Write-Output "GITHUB_WORKSPACE (from github context): ${{ github.workspace }}"
-        Write-Output "GITHUB_WORKSPACE (from env context): $env:GITHUB_WORKSPACE"
-        Write-Output "Workspace root structure (using $env:GITHUB_WORKSPACE):"
-        Get-ChildItem -Path $env:GITHUB_WORKSPACE -Recurse -Depth 4 | Select-Object FullName, Length, LastWriteTime
-        Write-Output "Contents of publish_output directory:"
-        Get-ChildItem -Path (Join-Path $env:GITHUB_WORKSPACE "publish_output" "net48_win-x64") -Recurse -ErrorAction SilentlyContinue | Select-Object FullName, Length, LastWriteTime
-        Write-Output "Contents of release_staging directory:"
-        Get-ChildItem -Path (Join-Path $env:GITHUB_WORKSPACE "release_staging") -Recurse -ErrorAction SilentlyContinue | Select-Object FullName, Length, LastWriteTime
+        Write-Output "--- GITHUB_WORKSPACE Contexts ---"
+        Write-Output "github.workspace: ${{ github.workspace }}"
+        Write-Output "env:GITHUB_WORKSPACE: $env:GITHUB_WORKSPACE"
+        
+        Write-Output "--- Workspace Root Structure ---"
+        Get-ChildItem -Path $env:GITHUB_WORKSPACE -Depth 2 -ErrorAction SilentlyContinue | Select-Object FullName, Mode, LastWriteTime
+        
+        $publishCheckPath = Join-Path $env:GITHUB_WORKSPACE "publish_output" "net48_win-x64"
+        Write-Output "--- Contents of Publish Directory ($publishCheckPath) ---"
+        if (Test-Path $publishCheckPath) {
+          Get-ChildItem -Path $publishCheckPath -Recurse -ErrorAction SilentlyContinue | Select-Object FullName, Length, LastWriteTime
+        } else {
+          Write-Warning "Publish directory not found: $publishCheckPath"
+        }
+        
+        $stagingCheckPath = Join-Path $env:GITHUB_WORKSPACE "release_staging"
+        Write-Output "--- Contents of Staging Directory ($stagingCheckPath) ---"
+        if (Test-Path $stagingCheckPath) {
+          Get-ChildItem -Path $stagingCheckPath -Recurse -ErrorAction SilentlyContinue | Select-Object FullName, Length, LastWriteTime
+        } else {
+          Write-Warning "Staging directory not found: $stagingCheckPath"
+        }
