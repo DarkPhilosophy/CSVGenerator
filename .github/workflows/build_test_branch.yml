@@ -2,11 +2,11 @@ name: Test Build and Release CSVGenerator
 
 on:
   push:
-    branches: [ test ] # Trigger on the 'test' branch
+    branches: [ test ] 
   workflow_dispatch:
 
 permissions:
-  contents: write # Needed for creating releases and tags
+  contents: write 
 
 jobs:
   build-release: 
@@ -29,7 +29,7 @@ jobs:
         repository: DarkPhilosophy/Common
         path: Common
         ref: test
-        # token: ${{ secrets.GITHUB_TOKEN }} # Only if Common is private and needs this token
+        # token: ${{ secrets.GITHUB_TOKEN }} 
 
     - name: Setup .NET SDK
       uses: actions/setup-dotnet@v4
@@ -50,103 +50,57 @@ jobs:
       run: |
         Write-Output "Script starting. Value of CI_WORKSPACE from step env: '$($env:CI_WORKSPACE)'"
         Write-Output "Script starting. Value of GITHUB_WORKSPACE from direct env access: '$($env:GITHUB_WORKSPACE)'"
-
         $baseWorkspacePath = $env:GITHUB_WORKSPACE
         if ([string]::IsNullOrWhiteSpace($baseWorkspacePath)) {
             Write-Warning "Direct $env:GITHUB_WORKSPACE was empty or null, trying $env:CI_WORKSPACE from step env."
             $baseWorkspacePath = $env:CI_WORKSPACE
         }
-
         if ([string]::IsNullOrWhiteSpace($baseWorkspacePath)) {
             Write-Error "Base workspace path is empty or null. Aborting."
             exit 1
         }
         Write-Output "Using base workspace path: '$baseWorkspacePath'"
-
         $csvGeneratorCheckoutPath = Join-Path $baseWorkspacePath "CSVGenerator" 
         $commonCheckoutPath = Join-Path $baseWorkspacePath "Common"          
-
         Write-Output "Calculated csvGeneratorCheckoutPath: '$csvGeneratorCheckoutPath'"
         Write-Output "Calculated commonCheckoutPath: '$commonCheckoutPath'"
-        
-        $projectRoots = @(
-            $csvGeneratorCheckoutPath,
-            $commonCheckoutPath
-        )
-        
-        $tfmToReplace = 'net10.0-windows'
-        $tfmReplacement = 'net9.0-windows'
-        $escapedTfmToReplace = [regex]::Escape($tfmToReplace) 
-
+        $projectRoots = @( $csvGeneratorCheckoutPath, $commonCheckoutPath )
+        $tfmToReplace = 'net10.0-windows'; $tfmReplacement = 'net9.0-windows'
+        $escapedTfmToReplace = [regex]::Escape($tfmToReplace)
         Write-Output "Project roots to scan: $($projectRoots -join ', ')"
         Write-Output "Searching for TargetFramework '$tfmToReplace' to replace with '$tfmReplacement'."
-        
         foreach ($rootPath in $projectRoots) {
             if (Test-Path $rootPath) {
                 Write-Output "Scanning directory: $rootPath"
                 Get-ChildItem -Path $rootPath -Include *.csproj -Recurse | ForEach-Object {
-                    $projectFile = $_.FullName
-                    Write-Output "Processing project file: $projectFile"
-                    $content = Get-Content $projectFile -Raw
-                    $originalContent = $content 
-
-                    $wasModified = $false
-
-                    # Attempt 1: Simple, direct string replacement
+                    $projectFile = $_.FullName; Write-Output "Processing project file: $projectFile"
+                    $content = Get-Content $projectFile -Raw; $originalContent = $content; $wasModified = $false
                     if ($content.Contains($tfmToReplace)) {
                         Write-Output "Attempting simple string replace of '$tfmToReplace' in $projectFile"
                         $content = $content.Replace($tfmToReplace, $tfmReplacement)
-                        if ($content -ne $originalContent) {
-                            Write-Output "Simple string replace successful for $projectFile."
-                            $wasModified = $true
-                        } else {
-                            Write-Output "Simple string replace did not alter content for $projectFile (this is unexpected if .Contains was true)."
-                        }
+                        if ($content -ne $originalContent) { Write-Output "Simple string replace successful."; $wasModified = $true }
+                        else { Write-Output "Simple string replace did not alter content."}
                     }
-
-                    # Attempt 2: If not modified and still contains the TFM, try regex for specific XML structures
                     if (-not $wasModified -and $content.Contains($tfmToReplace)) {
-                        Write-Output "Simple replace didn't modify, or TFM re-checked. Trying regex for specific structures in $projectFile."
-                        # Regex for <TargetFrameworks>
+                        Write-Output "Simple replace failed/TFM still present. Trying regex."
                         $regexPatternForTargetFrameworks = "([<TargetFrameworks>].*?;?)\s*$($escapedTfmToReplace)\s*(;?.*?<\TargetFrameworks>)"
                         if ($content -match "<TargetFrameworks>.*$($escapedTfmToReplace).*</TargetFrameworks>") {
-                            Write-Output "Found '$tfmToReplace' in <TargetFrameworks> section of $($projectFile) for regex attempt."
                             $tempContent = $content -replace $regexPatternForTargetFrameworks, ('$1' + $tfmReplacement + '$3')
-                            if ($tempContent -ne $content) {
-                                $content = $tempContent
-                                $wasModified = $true
-                                Write-Output "Regex replace in <TargetFrameworks> successful."
-                            } else {
-                                Write-Output "Regex replace in <TargetFrameworks> did not alter content."
-                            }
+                            if ($tempContent -ne $content) { $content = $tempContent; $wasModified = $true; Write-Output "Regex <TargetFrameworks> replace successful."}
+                            else { Write-Output "Regex <TargetFrameworks> did not alter."}
                         }
-                        
-                        # Regex for singular <TargetFramework>
                         if (-not $wasModified -and $content -match "<TargetFramework>$($escapedTfmToReplace)</TargetFramework>") {
-                             Write-Output "Found '$tfmToReplace' in <TargetFramework> section of $($projectFile) for regex attempt."
                              $regexPatternForTargetFramework = "<TargetFramework>$($escapedTfmToReplace)</TargetFramework>"
-                             $replacementForTargetFramework = "<TargetFramework>$($tfmReplacement)</TargetFramework>"
-                             $tempContent = $content -replace $regexPatternForTargetFramework, $replacementForTargetFramework
-                             if ($tempContent -ne $content) {
-                                $content = $tempContent
-                                $wasModified = $true
-                                Write-Output "Regex replace in <TargetFramework> successful."
-                             } else {
-                                Write-Output "Regex replace in <TargetFramework> did not alter content."
-                             }
+                             $replacementForTf = "<TargetFramework>$($tfmReplacement)</TargetFramework>"
+                             $tempContent = $content -replace $regexPatternForTargetFramework, $replacementForTf
+                             if ($tempContent -ne $content) { $content = $tempContent; $wasModified = $true; Write-Output "Regex <TargetFramework> replace successful."}
+                             else { Write-Output "Regex <TargetFramework> did not alter."}
                         }
                     }
-
-                    if ($wasModified) {
-                        Set-Content -Path $projectFile -Value $content -Force -Encoding UTF8
-                        Write-Output "Successfully saved updated TFM in $projectFile."
-                    } else {
-                        Write-Output "TFM '$tfmToReplace' not found or no replacement logic successfully altered content in $projectFile."
-                    }
+                    if ($wasModified) { Set-Content -Path $projectFile -Value $content -Force -Encoding UTF8; Write-Output "Successfully saved $projectFile."}
+                    else { Write-Output "No changes made to $projectFile."}
                 }
-            } else {
-                Write-Warning "Path $rootPath does not exist. Check checkout paths and calculated paths."
-            }
+            } else { Write-Warning "Path $rootPath does not exist."}
         }
       shell: pwsh
       
@@ -194,7 +148,7 @@ jobs:
           $versionInfo = (Get-Item $stagedExePath).VersionInfo
           $fileVersion = $versionInfo.FileVersion
           if ([string]::IsNullOrWhiteSpace($fileVersion)) {
-            Write-Warning "File version is empty, using '0.0.0.1' as fallback for test release." # Changed fallback
+            Write-Warning "File version is empty, using '0.0.0.1' as fallback for test release."
             $fileVersion = "0.0.0.1" 
           }
           $productVersion = $versionInfo.ProductVersion
@@ -202,10 +156,10 @@ jobs:
           $sha256 = Get-FileHash -Path $stagedExePath -Algorithm SHA256 | Select-Object -ExpandProperty Hash
           $buildTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss UTC"
           
-          Push-Location (Join-Path $env:GITHUB_WORKSPACE "CSVGenerator") # Context for git commands
+          Push-Location (Join-Path $env:GITHUB_WORKSPACE "CSVGenerator") 
           $commitHash = git rev-parse HEAD
           $commitMessage = (git log -1 --pretty=%B).Trim()
-          $latestTagName = $(git describe --tags --abbrev=0 2>$null)
+          $latestTagName = $(git describe --tags --abbrev=0 2>$null) # Using $() for command substitution
           Pop-Location
 
           $metadataContent = "Product: CSVGenerator" + [Environment]::NewLine
@@ -223,15 +177,15 @@ jobs:
 
           if ($latestTagName) {
             Push-Location (Join-Path $env:GITHUB_WORKSPACE "CSVGenerator")
-            # Get commits in a clean, one-line-per-commit format
             $commitsSinceLastTag = git log "${latestTagName}..HEAD" --pretty=format:"- %s (%h)" --reverse | Where-Object { $_.Trim() }
             if ($commitsSinceLastTag) {
-                $releaseNotesBody = "Changes since $latestTagName:" + [Environment]::NewLine + ($commitsSinceLastTag -join [Environment]::NewLine)
+                # Corrected Line:
+                $releaseNotesBody = "Changes since ${latestTagName}:" + [Environment]::NewLine + ($commitsSinceLastTag -join [Environment]::NewLine)
             }
             Pop-Location
           }
 
-          $releaseNotes = "# CSVGenerator v$fileVersion (Test Build)" + [Environment]::NewLine # Clarify it's a test build
+          $releaseNotes = "# CSVGenerator v$fileVersion (Test Build)" + [Environment]::NewLine
           $releaseNotes += "Build Date: $buildTime" + [Environment]::NewLine
           $releaseNotes += "SHA256: $sha256 ($($exeFile.Name))" + [Environment]::NewLine
           $releaseNotes += [Environment]::NewLine
@@ -252,12 +206,12 @@ jobs:
         }
       
     - name: Upload Build Artifact (for debugging/retention)
-      if: always() # Upload even if subsequent release fails
+      if: always() 
       uses: actions/upload-artifact@v4
       with:
         name: CSVGenerator-Build-Test-${{ steps.release-prep.outputs.version || github.run_number }}
         path: ${{ steps.publish-csvgenerator.outputs.publish_dir }}/ 
-        if-no-files-found: warn # Warn if no files, as publish might have failed earlier
+        if-no-files-found: warn 
         retention-days: 7
         
     - name: Create GitHub Release on 'test' branch
@@ -265,7 +219,7 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         name: Test Release - CSVGenerator v${{ steps.release-prep.outputs.version }}
-        tag_name: test-v${{ steps.release-prep.outputs.version }}-${{ github.run_id }} # Unique tag using run_id
+        tag_name: test-v${{ steps.release-prep.outputs.version }}-${{ github.run_id }} 
         body_path: ${{ steps.release-prep.outputs.release_notes_path }}
         files: |
           ${{ steps.release-prep.outputs.assets_path }}/CSVGenerator.exe
@@ -276,13 +230,13 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: List directory structure (Post-Build Debugging)
-      if: ${{ always() }} # Run even if previous steps fail
+      if: ${{ always() }} 
       run: |
         Write-Output "GITHUB_WORKSPACE (from github context): ${{ github.workspace }}"
         Write-Output "GITHUB_WORKSPACE (from env context): $env:GITHUB_WORKSPACE"
         Write-Output "Workspace root structure (using $env:GITHUB_WORKSPACE):"
         Get-ChildItem -Path $env:GITHUB_WORKSPACE -Recurse -Depth 4 | Select-Object FullName, Length, LastWriteTime
         Write-Output "Contents of publish_output directory:"
-        Get-ChildItem -Path (Join-Path $env:GITHUB_WORKSPACE "publish_output" "net48_win-x64") -Recurse | Select-Object FullName, Length, LastWriteTime
+        Get-ChildItem -Path (Join-Path $env:GITHUB_WORKSPACE "publish_output" "net48_win-x64") -Recurse -ErrorAction SilentlyContinue | Select-Object FullName, Length, LastWriteTime
         Write-Output "Contents of release_staging directory:"
-        Get-ChildItem -Path (Join-Path $env:GITHUB_WORKSPACE "release_staging") -Recurse | Select-Object FullName, Length, LastWriteTime
+        Get-ChildItem -Path (Join-Path $env:GITHUB_WORKSPACE "release_staging") -Recurse -ErrorAction SilentlyContinue | Select-Object FullName, Length, LastWriteTime
