@@ -176,6 +176,7 @@ jobs:
                     Write-Output "INFO: CommitHash: $commitHash"
                     Write-Output "INFO: Getting commit message..."
                     $rawCommitMessage = (git log -1 --pretty=%B).Trim()
+                    Write-Output "INFO: Raw CommitMessage line count: $($rawCommitMessage -split '(\r?\n)' | Measure-Object -Line | Select-Object -ExpandProperty Lines)"
                     Write-Output "INFO: Getting latest tag name (errors suppressed)..."
                     $latestTagName = $(git describe --tags --abbrev=0 2>$null)
                     if ([string]::IsNullOrWhiteSpace($latestTagName)) {
@@ -185,40 +186,40 @@ jobs:
                 } catch { Write-Error "ERROR: Failed during git operations. Error: $($_.Exception.Message)" }
                 finally { Pop-Location; Write-Output "INFO: Popped location from git repo path." }
 
-                # Prepare commit message for multi-line display in Markdown
+                # Prepare raw commit message for multi-line display in Markdown
                 $formattedCommitMessage = ($rawCommitMessage -split '(\r?\n)' | ForEach-Object {
                     if ($_ -match '\S') { # If the line has non-whitespace content
                         $_.TrimEnd() + "  " # Add two spaces to the end of non-empty lines for Markdown hard break
                     } else {
                         $_ # Keep blank lines as they are (they'll create paragraph breaks)
                     }
-                }) -join "`n" # Join with a single newline character.
+                }) -join "`n" 
+                Write-Output "INFO: Formatted commit message line count: $($formattedCommitMessage -split '`n' | Measure-Object -Line | Select-Object -ExpandProperty Lines)"
                 
                 Write-Output "INFO: Creating metadata content..."
                 $metadataContent = "Product: CSVGenerator" + [Environment]::NewLine
                 $metadataContent += "File: $($exeFile.Name)" + [Environment]::NewLine
                 $metadataContent += "Version: $fileVersion" + [Environment]::NewLine
-                # ... (rest of metadata content generation)
                 $metadataContent += "ProductVersion: $productVersion" + [Environment]::NewLine
                 $metadataContent += "Build Time: $buildTime" + [Environment]::NewLine
                 $metadataContent += "Commit: $commitHash" + [Environment]::NewLine 
-                $metadataContent += "Commit Message (raw):`n$rawCommitMessage" + [Environment]::NewLine # Include raw for debugging
+                $metadataContent += "Commit Message (raw):`n$rawCommitMessage" + [Environment]::NewLine 
                 $metadataContent += "SHA256: $sha256"
                 $metadataFilePath = Join-Path $stagingDir "$($exeFile.Name).metadata.txt"
                 Write-Output "INFO: Writing metadata to: $metadataFilePath"
                 Set-Content -Path $metadataFilePath -Value $metadataContent
                 Write-Output "INFO: Metadata written."
                 
-                # Initialize releaseNotesBody with the primary commit details
-                $releaseNotesBody = "- **Commit:** `$commitHash`" + [Environment]::NewLine
-                $releaseNotesBody += "- **Message:**" + [Environment]::NewLine # Header for message
-                # Add the formatted commit message, indenting each line for quote style
-                $indentedFormattedCommitMessage = ($formattedCommitMessage -split "`n" | ForEach-Object {
-                    if ($_.Trim().Length -gt 0) { "  > " + $_.TrimEnd(" ") } # Trim only the two spaces we added, not user's trailing spaces
-                    else { "" } 
+                # Default release notes body (for single commit case)
+                $defaultReleaseNotesBody = "- **Commit:** `$commitHash`" + [Environment]::NewLine
+                $defaultReleaseNotesBody += "- **Message:**" + [Environment]::NewLine # Header for message
+                $commitMessageBlock = ($formattedCommitMessage -split "`n" | ForEach-Object {
+                    if ($_.Trim().Length -gt 0) { "  > " + $_.TrimEnd(" ") } # Trim our added spaces from the end
+                    else { "" } # Skip fully blank lines from the source for the blockquote
                 }) -join [Environment]::NewLine
-                $releaseNotesBody += $indentedFormattedCommitMessage.TrimEnd([Environment]::NewLine.ToCharArray())
+                $defaultReleaseNotesBody += $commitMessageBlock.TrimEnd([Environment]::NewLine.ToCharArray())
 
+                $releaseNotesBody = $defaultReleaseNotesBody # Assume single commit info first
 
                 if ($latestTagName) { 
                     Write-Output "INFO: Getting commits since last tag ($latestTagName)..."
@@ -227,19 +228,25 @@ jobs:
                         $commitsSinceLastTag = git log "${latestTagName}..HEAD" --pretty=format:"- %s (`%h`)" --reverse | Where-Object { $_.Trim() }
                         if ($commitsSinceLastTag) {
                             Write-Output "INFO: Found commits since last tag."
-                            $releaseNotesBody = "### Changes since $latestTagName" + [Environment]::NewLine + ($commitsSinceLastTag -join [Environment]::NewLine)
-                        } else { Write-Output "INFO: No new commits found since last tag $latestTagName. Using single commit info." }
-                    } catch { Write-Error "ERROR: Failed getting commits since last tag. Error: $($_.Exception.Message)" }
+                            $releaseNotesBody = "### Changes since ${latestTagName}" + [Environment]::NewLine + ($commitsSinceLastTag -join [Environment]::NewLine)
+                        } else { 
+                            Write-Output "INFO: No new commits found since last tag $latestTagName. Using single commit info (already set)."
+                        }
+                    } catch { 
+                        Write-Error "ERROR: Failed getting commits since last tag. Error: $($_.Exception.Message)"
+                        Write-Warning "WARN: Proceeding with single commit information for release notes."
+                    }
                     finally { Pop-Location }
+                } else {
+                    Write-Output "INFO: No previous tags found. Using single commit information for release notes."
                 }
 
                 Write-Output "INFO: Creating release notes content..."
                 $releaseNotes = "# CSVGenerator v$fileVersion (Test Build)" + [Environment]::NewLine
-                # ... (rest of release notes generation)
                 $releaseNotes += "Build Date: $buildTime" + [Environment]::NewLine
                 $releaseNotes += "SHA256: $sha256 ($($exeFile.Name))" + [Environment]::NewLine
                 $releaseNotes += [Environment]::NewLine
-                $releaseNotes += "## Details" + [Environment]::NewLine # Changed from "Changes" if using single commit mode
+                $releaseNotes += "## Details / Changes" + [Environment]::NewLine 
                 $releaseNotes += $releaseNotesBody
                 $releaseNotesFilePath = Join-Path $stagingDir "release-notes.md"
                 Write-Output "INFO: Writing release notes to: $releaseNotesFilePath"
@@ -293,4 +300,8 @@ jobs:
         Write-Output "GITHUB_WORKSPACE (from github context): ${{ github.workspace }}"
         Write-Output "GITHUB_WORKSPACE (from env context): $env:GITHUB_WORKSPACE"
         Write-Output "Workspace root structure (using $env:GITHUB_WORKSPACE):"
-        Get-ChildItem -Path $env:GITHU
+        Get-ChildItem -Path $env:GITHUB_WORKSPACE -Recurse -Depth 4 | Select-Object FullName, Length, LastWriteTime
+        Write-Output "Contents of publish_output directory:"
+        Get-ChildItem -Path (Join-Path $env:GITHUB_WORKSPACE "publish_output" "net48_win-x64") -Recurse -ErrorAction SilentlyContinue | Select-Object FullName, Length, LastWriteTime
+        Write-Output "Contents of release_staging directory:"
+        Get-ChildItem -Path (Join-Path $env:GITHUB_WORKSPACE "release_staging") -Recurse -ErrorAction SilentlyContinue | Select-Object FullName, Length, LastWriteTime
