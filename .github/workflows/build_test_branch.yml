@@ -72,7 +72,7 @@ jobs:
                         $content = $content.Replace($tfmToReplace, $tfmReplacement)
                         if ($content -ne $originalContent) { $wasModified = $true }
                     }
-                    if (-not $wasMmodified -and $content.Contains($tfmToReplace)) { # Corrected typo here from previous version
+                    if (-not $wasModified -and $content.Contains($tfmToReplace)) {
                         $regexPatternForTargetFrameworks = "([<TargetFrameworks>].*?;?)\s*$($escapedTfmToReplace)\s*(;?.*?<\TargetFrameworks>)"
                         if ($content -match "<TargetFrameworks>.*$($escapedTfmToReplace).*</TargetFrameworks>") {
                             $tempContent = $content -replace $regexPatternForTargetFrameworks, ('$1' + $tfmReplacement + '$3')
@@ -156,7 +156,7 @@ jobs:
             
             $gitRepoPath = Join-Path $env:GITHUB_WORKSPACE "CSVGenerator"
             $commitHash = "GIT_UNAVAILABLE"
-            $rawCommitMessage = "GIT_UNAVAILABLE" # Initialize to a non-empty default
+            $rawCommitMessage = "GIT_UNAVAILABLE" 
             $latestTagName = $null
 
             if (Test-Path (Join-Path $gitRepoPath ".git")) {
@@ -164,12 +164,11 @@ jobs:
                 try {
                     $commitHash = git rev-parse HEAD
                     $rawCommitMessage = (git log -1 --pretty=%B).Trim()
-                    if ([string]::IsNullOrWhiteSpace($rawCommitMessage)) { $rawCommitMessage = "No explicit commit message." } # Handle empty commit message
+                    if ([string]::IsNullOrWhiteSpace($rawCommitMessage)) { $rawCommitMessage = "(No explicit commit message)" } 
                     $latestTagName = $(git describe --tags --abbrev=0 2>$null)
                     if ([string]::IsNullOrWhiteSpace($latestTagName)) { $latestTagName = $null }
                 } catch {
                     Write-Warning "WARN: Git operations failed. Error: $($_.Exception.Message)"
-                    # Keep default $commitHash and $rawCommitMessage
                 } finally {
                     Pop-Location
                 }
@@ -186,7 +185,7 @@ jobs:
 
             $formattedCommitMessage = "" 
             if (-not [string]::IsNullOrWhiteSpace($rawCommitMessage)) {
-                $formattedCommitMessage = ($rawCommitMessage -replace '(\r?\n)', "  `n").TrimEnd() 
+                $formattedCommitMessage = ($rawCommitMessage -replace '(\r?\n)', "  `n").TrimEnd() # Markdown line breaks
             }
             if (-not [string]::IsNullOrWhiteSpace($formattedCommitMessage)) {
                 Write-Output "INFO: FormattedCommitMessage (first 100 chars): $($formattedCommitMessage.Substring(0, [System.Math]::Min($formattedCommitMessage.Length, 100)) )"
@@ -194,40 +193,46 @@ jobs:
                 Write-Output "INFO: FormattedCommitMessage is empty or null."
             }
             
-            $commitHashForHereString = $commitHash -replace "`", "``"
-            $rawCommitMessageForHereString = $rawCommitMessage -replace "`", "``"
-
-            $metadataText = @"
-Product: CSVGenerator
-File: $($exeFile.Name)
-Version: $fileVersion
-ProductVersion: $productVersion
-Build Time: $buildTime
-Commit: $commitHashForHereString
-Commit Message (raw):
-$rawCommitMessageForHereString
-SHA256: $sha256
-"@
+            # --- Metadata Content (YAML Safe Construction) ---
+            Write-Output "INFO: Creating metadata content..."
+            $metadataLines = @(
+                "Product: CSVGenerator",
+                "File: $($exeFile.Name)",
+                "Version: $fileVersion",
+                "ProductVersion: $productVersion",
+                "Build Time: $buildTime",
+                "Commit: $commitHash",
+                "Commit Message (raw):"  # Header line
+            )
+            if (-not [string]::IsNullOrWhiteSpace($rawCommitMessage)) {
+                $rawCommitMessage -split '(\r?\n)' | ForEach-Object { $metadataLines += $_.TrimEnd() }
+            } else {
+                $metadataLines += "(No commit message)"
+            }
+            $metadataLines += "SHA256: $sha256"
+            $metadataContent = $metadataLines -join [Environment]::NewLine
+                                
             $metadataFilePath = Join-Path $stagingDir "$($exeFile.Name).metadata.txt"
-            Set-Content -Path $metadataFilePath -Value $metadataText
+            Set-Content -Path $metadataFilePath -Value $metadataContent
             Write-Output "INFO: Metadata written."
 
+            # --- Release Notes Body Construction ---
             Write-Output "DEBUG: Constructing Release Notes Body..."
-            $_part1 = "- Commit: $($commitHashForHereString)" 
-            $_part2 = "- Message:" 
+            $_part1 = "- **Commit:** `$($commitHash)`" # Use $() for robustness with backticks
+            $_part2 = "- **Message:**" 
             
             Write-Output "DEBUG: _part1 = '$_part1'"
             Write-Output "DEBUG: _part2 = '$_part2'"
 
-            $commitMessageBlockForNotes = ""
+            $_commitMessageBlockContent = ""
             if (-not [string]::IsNullOrWhiteSpace($formattedCommitMessage)) {
-                 $commitMessageBlockForNotes = ($formattedCommitMessage -split "  `n" | ForEach-Object { 
-                     if ($_.Trim().Length -gt 0) { "  > " + $_ } else { ""} 
-                 }) -join "`n" 
-                 $commitMessageBlockForNotes = $commitMessageBlockForNotes.TrimEnd()
+                 $_commitMessageBlockContent = ($formattedCommitMessage -split "  `n" | ForEach-Object { 
+                     if ($_.Trim().Length -gt 0) { "  > " + $_ } else { ""} # $_ already has "  " at end for line break if not empty
+                 }) -join "`n" # Join with just newline for the blockquote lines
+                 $_commitMessageBlockContent = $_commitMessageBlockContent.TrimEnd() # Remove trailing newlines from block
             }
             
-            $defaultReleaseNotesBody = "$($_part1)`n$($_part2)`n$($commitMessageBlockForNotes)"
+            $defaultReleaseNotesBody = $_part1 + [Environment]::NewLine + $_part2 + [Environment]::NewLine + $_commitMessageBlockContent
             $releaseNotesBody = $defaultReleaseNotesBody
 
             if ($latestTagName) { 
@@ -235,7 +240,7 @@ SHA256: $sha256
                 try {
                     $commitsSinceLastTag = git log "${latestTagName}..HEAD" --pretty=format:"- %s (`%h`)" --reverse | Where-Object { $_.Trim() }
                     if ($commitsSinceLastTag) {
-                        $releaseNotesBody = "### Changes since ${latestTagName}`n" + ($commitsSinceLastTag -join "`n")
+                        $releaseNotesBody = "### Changes since ${latestTagName}" + [Environment]::NewLine + ($commitsSinceLastTag -join [Environment]::NewLine)
                     }
                 } catch { Write-Warning "WARN: Failed getting commits since last tag. $($_.Exception.Message)" }
                 finally { Pop-Location }
@@ -247,20 +252,22 @@ SHA256: $sha256
                  Write-Output "INFO: Final Release Notes Body is empty or null."
             }
             
-            $releaseNotesBodyForHereString = $releaseNotesBody -replace "`", "``"
-            $fileVersionForHereString = $fileVersion -replace "`", "``"
-            $buildTimeForHereString = $buildTime -replace "`", "``"
-            $sha256ForHereString = $sha256 -replace "`", "``"
-            $exeNameForHereString = $($exeFile.Name) -replace "`", "``"
-
-            $releaseNotesText = @"
-# CSVGenerator v$fileVersionForHereString (Test Build)
-Build Date: $buildTimeForHereString
-SHA256: $sha256ForHereString ($exeNameForHereString)
-
-## Details / Changes
-$releaseNotesBodyForHereString
-"@
+            # --- Release Notes File Content (YAML Safe Construction) ---
+            Write-Output "INFO: Creating release notes file content..."
+            $releaseNotesLines = @(
+                "# CSVGenerator v$fileVersion (Test Build)",
+                "Build Date: $buildTime",
+                "SHA256: $sha256 ($($exeFile.Name))",
+                "", 
+                "## Details / Changes"
+            )
+            if (-not [string]::IsNullOrWhiteSpace($releaseNotesBody)) {
+                $releaseNotesBody -split '(\r?\n)' | ForEach-Object { $releaseNotesLines += $_.TrimEnd() }
+            } else {
+                $releaseNotesLines += "(No changes to list)"
+            }
+            $releaseNotesText = $releaseNotesLines -join [Environment]::NewLine
+            
             $releaseNotesFilePath = Join-Path $stagingDir "release-notes.md" 
             $relativeReleaseNotesPath = Join-Path $relativeStagingDir "release-notes.md" 
             Set-Content -Path $releaseNotesFilePath -Value $releaseNotesText
@@ -301,3 +308,5 @@ $releaseNotesBodyForHereString
         prerelease: true 
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    # No final debug step
