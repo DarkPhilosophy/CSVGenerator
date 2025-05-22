@@ -47,7 +47,7 @@ jobs:
       env:
         CI_WORKSPACE: ${{ github.workspace }} 
       run: |
-        # ... (Full TFM update script - assumed to be the working one) ...
+        # (The TFM update script - assumed to be the last working version)
         Write-Output "Script starting. Value of CI_WORKSPACE from step env: '$($env:CI_WORKSPACE)'"
         Write-Output "Script starting. Value of GITHUB_WORKSPACE from direct env access: '$($env:GITHUB_WORKSPACE)'"
         $baseWorkspacePath = $env:GITHUB_WORKSPACE
@@ -172,9 +172,9 @@ jobs:
                     exit 1 
                 }
                 
-                $commitHash = ""
-                $rawCommitMessage = ""
-                $latestTagName = "" 
+                $commitHash = "GIT_HASH_UNAVAILABLE" 
+                $rawCommitMessage = "GIT_MESSAGE_UNAVAILABLE" 
+                $latestTagName = $null 
 
                 Push-Location $gitRepoPath
                 try {
@@ -197,16 +197,11 @@ jobs:
                 }
                 catch {
                     Write-Error "ERROR: Failed during primary git operations (commit hash/message/latest tag). Error: $($_.Exception.Message)"
-                    if ([string]::IsNullOrWhiteSpace($commitHash)) {$commitHash = "GIT_HASH_ERROR"}
-                    if ([string]::IsNullOrWhiteSpace($rawCommitMessage)) {$rawCommitMessage = "GIT_MESSAGE_ERROR"}
                 }
                 finally {
                     Pop-Location
                     Write-Output "INFO: Popped location from git repo path."
                 }
-
-                if ([string]::IsNullOrWhiteSpace($commitHash)) { $commitHash = "N/A"; Write-Warning "Commit hash is N/A"; }
-                if ([string]::IsNullOrWhiteSpace($rawCommitMessage)) { $rawCommitMessage = "Commit message not available."; Write-Warning "Raw commit message is N/A"; }
 
                 $formattedCommitMessageLines = $rawCommitMessage -split '(\r?\n)' | ForEach-Object {
                     if ($_ -match '\S') { 
@@ -219,27 +214,32 @@ jobs:
                 Write-Output "INFO: Formatted commit message ready."
                 
                 Write-Output "INFO: Creating metadata content..."
-                $metadataContent = "Product: CSVGenerator" + [Environment]::NewLine
-                $metadataContent += "File: $($exeFile.Name)" + [Environment]::NewLine
-                $metadataContent += "Version: $fileVersion" + [Environment]::NewLine 
-                $metadataContent += "ProductVersion: $productVersion" + [Environment]::NewLine 
-                $metadataContent += "Build Time: $buildTime" + [Environment]::NewLine 
-                $metadataContent += "Commit: $commitHash" + [Environment]::NewLine  
-                $metadataContent += "Commit Message (raw):`n$rawCommitMessage" + [Environment]::NewLine 
-                $metadataContent += "SHA256: $sha256" 
+                $metadataContent = @"
+Product: CSVGenerator
+File: $($exeFile.Name)
+Version: $fileVersion
+ProductVersion: $productVersion
+Build Time: $buildTime
+Commit: $commitHash
+Commit Message (raw):
+$rawCommitMessage
+SHA256: $sha256
+"@ 
                 $metadataFilePath = Join-Path $stagingDir "$($exeFile.Name).metadata.txt"
                 Set-Content -Path $metadataFilePath -Value $metadataContent
                 Write-Output "INFO: Metadata written."
 
-                $defaultReleaseNotesBody = "- **Commit:** `$($commitHash)`" + [Environment]::NewLine 
-                $defaultReleaseNotesBody += "- **Message:**" + [Environment]::NewLine
-                
-                $commitMessageBlockLines = $formattedCommitMessage -split "`n" | ForEach-Object {
+                # --- Construct Release Notes Body ---
+                $_part1 = "- **Commit:** `$($commitHash)`"
+                $_part2 = "- **Message:**"
+                $_commitMessageBlockContent = ($formattedCommitMessage -split "`n" | ForEach-Object {
                     if ($_.Trim().Length -gt 0) { "  > " + $_.TrimEnd(" ") } 
                     else { "" } 
-                }
-                $commitMessageBlock = $commitMessageBlockLines -join [Environment]::NewLine
-                $defaultReleaseNotesBody += $commitMessageBlock.TrimEnd([Environment]::NewLine.ToCharArray())
+                }) -join [Environment]::NewLine
+                $_part3 = $_commitMessageBlockContent.TrimEnd([Environment]::NewLine.ToCharArray())
+
+                $defaultReleaseNotesBody = $_part1 + [Environment]::NewLine + $_part2 + [Environment]::NewLine + $_part3
+                Write-Output "DEBUG: Default Release Notes Body (before tag check):`n$defaultReleaseNotesBody"
 
                 $releaseNotesBody = $defaultReleaseNotesBody 
 
@@ -264,11 +264,14 @@ jobs:
                 }
                 
                 Write-Output "INFO: Creating release notes file content..."
-                $releaseNotes = "# CSVGenerator v$fileVersion (Test Build)`n" 
-                $releaseNotes += "Build Date: $buildTime`n" 
-                $releaseNotes += "SHA256: $sha256 ($($exeFile.Name))`n`n" 
-                $releaseNotes += "## Details / Changes`n"
-                $releaseNotes += $releaseNotesBody
+                $releaseNotes = @"
+# CSVGenerator v$fileVersion (Test Build)
+Build Date: $buildTime
+SHA256: $sha256 ($($exeFile.Name))
+
+## Details / Changes
+$releaseNotesBody
+"@
                 $releaseNotesFilePath = Join-Path $stagingDir "release-notes.md"
                 Set-Content -Path $releaseNotesFilePath -Value $releaseNotes
                 Write-Output "INFO: Release notes written to $releaseNotesFilePath"
