@@ -115,7 +115,7 @@ jobs:
         Write-Output "CSVGenerator published to $publishDir"
         echo "publish_dir=$publishDir" >> $env:GITHUB_OUTPUT
         
-    - name: Prepare Release Assets and Metadata (Highly Simplified)
+    - name: Prepare Release Assets and Metadata (Ultra Simplified Strings)
       id: release-prep 
       run: |
         $ErrorActionPreference = "Stop" 
@@ -132,29 +132,29 @@ jobs:
                 Write-Output "INFO: Found executable: $($exeFile.FullName)"
                 # Minimal data for now
                 $fileVersion = "0.0.0.0-test"
-                $commitHash = "test-commit"
+                $commitHash = "test-commit"       # Simple string
                 $rawCommitMessage = "Test Commit Message"
                 $sha256 = "test-sha256"
                 $buildTime = "test-buildtime"
 
-                Write-Output "TEST POINT 1: Simple assignments done."
+                Write-Output "DEBUG: All initial dummy assignments complete."
 
-                # Test line 1 for release notes (previously problematic area)
-                $_test_line1 = "- **Commit:** `$($commitHash)`"
-                Write-Output "TEST POINT 2: _test_line1 assignment successful: $_test_line1"
+                # Test line 1 for release notes - NO BACKTICKS OR COMPLEX FORMATTING
+                $_test_line1 = "- Commit: $commitHash" 
+                Write-Output "DEBUG: _test_line1 assignment successful: $_test_line1"
 
-                # Test line 2 for release notes (previously problematic area)
-                $_test_line2 = "- **Message:**"
-                Write-Output "TEST POINT 3: _test_line2 assignment successful: $_test_line2"
+                # Test line 2 for release notes - NO COMPLEX FORMATTING
+                $_test_line2 = "- Message:" 
+                Write-Output "DEBUG: _test_line2 assignment successful: $_test_line2"
 
-                $defaultReleaseNotesBody = $_test_line1 + [Environment]::NewLine + $_test_line2 + [Environment]::NewLine + "  > " + $rawCommitMessage
-                Write-Output "TEST POINT 4: defaultReleaseNotesBody assignment successful."
+                $defaultReleaseNotesBody = $_test_line1 + [Environment]::NewLine + $_test_line2 + [Environment]::NewLine + "  " + $rawCommitMessage # Simple indent
+                Write-Output "DEBUG: defaultReleaseNotesBody assignment successful."
                 
                 $releaseNotesBody = $defaultReleaseNotesBody
 
                 # --- Minimal Metadata ---
                 $metadataContent = "Version: $fileVersion`nCommit: $commitHash`nSHA256: $sha256"
-                $metadataFilePath = Join-Path $stagingDir "$($exeFile.Name).metadata.txt" # Assumes exeFile.Name is valid
+                $metadataFilePath = Join-Path $stagingDir "$($exeFile.Name).metadata.txt" 
                 Set-Content -Path $metadataFilePath -Value $metadataContent
                 Write-Output "INFO: Minimal metadata written."
 
@@ -187,7 +187,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: CSVGenerator-Build-Test-${{ steps.release-prep.outputs.version || github.run_number }}
-        path: ${{ steps.publish-csvgenerator.outputs.publish__dir }}/ 
+        path: ${{ steps.publish-csvgenerator.outputs.publish_dir }}/ 
         if-no-files-found: warn 
         retention-days: 7
         
@@ -204,6 +204,6 @@ jobs:
         draft: false
         prerelease: true 
       env:
-        GITHUB_TOKEN: ${{ secrets.TOKEN_GITHUB }} # Corrected to GITHUB_TOKEN from common secrets
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     # Removed the final problematic debug step for now.
