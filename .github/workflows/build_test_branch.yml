@@ -1,14 +1,15 @@
-name: Test Build CSVGenerator
+name: Test Build and Release CSVGenerator
 
 on:
   push:
-    branches: [ test ]
-  pull_request:
-    branches: [ test ]
+    branches: [ test ] # Trigger on the 'test' branch
   workflow_dispatch:
 
+permissions:
+  contents: write # Needed for creating releases and tags
+
 jobs:
-  build-and-publish:
+  build-release: 
     runs-on: windows-latest
     
     defaults:
@@ -20,6 +21,7 @@ jobs:
       uses: actions/checkout@v4
       with:
         path: CSVGenerator
+        fetch-depth: 0 
 
     - name: Checkout Common library
       uses: actions/checkout@v4
@@ -27,11 +29,12 @@ jobs:
         repository: DarkPhilosophy/Common
         path: Common
         ref: test
-        
+        # token: ${{ secrets.GITHUB_TOKEN }} # Only if Common is private and needs this token
+
     - name: Setup .NET SDK
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: 8.0.x
+        dotnet-version: 8.0.x 
         
     - name: Install .NET Framework 4.8 Developer Pack
       run: |
@@ -89,6 +92,7 @@ jobs:
 
                     $wasModified = $false
 
+                    # Attempt 1: Simple, direct string replacement
                     if ($content.Contains($tfmToReplace)) {
                         Write-Output "Attempting simple string replace of '$tfmToReplace' in $projectFile"
                         $content = $content.Replace($tfmToReplace, $tfmReplacement)
@@ -100,8 +104,10 @@ jobs:
                         }
                     }
 
+                    # Attempt 2: If not modified and still contains the TFM, try regex for specific XML structures
                     if (-not $wasModified -and $content.Contains($tfmToReplace)) {
                         Write-Output "Simple replace didn't modify, or TFM re-checked. Trying regex for specific structures in $projectFile."
+                        # Regex for <TargetFrameworks>
                         $regexPatternForTargetFrameworks = "([<TargetFrameworks>].*?;?)\s*$($escapedTfmToReplace)\s*(;?.*?<\TargetFrameworks>)"
                         if ($content -match "<TargetFrameworks>.*$($escapedTfmToReplace).*</TargetFrameworks>") {
                             Write-Output "Found '$tfmToReplace' in <TargetFrameworks> section of $($projectFile) for regex attempt."
@@ -115,6 +121,7 @@ jobs:
                             }
                         }
                         
+                        # Regex for singular <TargetFramework>
                         if (-not $wasModified -and $content -match "<TargetFramework>$($escapedTfmToReplace)</TargetFramework>") {
                              Write-Output "Found '$tfmToReplace' in <TargetFramework> section of $($projectFile) for regex attempt."
                              $regexPatternForTargetFramework = "<TargetFramework>$($escapedTfmToReplace)</TargetFramework>"
@@ -152,49 +159,130 @@ jobs:
           ${{ runner.os }}-nuget-tfmfix-${{ hashFiles('**/csproj') }}-
           ${{ runner.os }}-nuget-tfmfix-
           ${{ runner.os }}-nuget-
-
-    - name: List directory structure and verify TFM changes (for debugging)
-      if: ${{ always() }}
-      run: |
-        Write-Output "GITHUB_WORKSPACE (from github context): ${{ github.workspace }}"
-        Write-Output "GITHUB_WORKSPACE (from env context): $env:GITHUB_WORKSPACE"
-        Write-Output "Workspace root structure (using $env:GITHUB_WORKSPACE):"
-        Get-ChildItem -Path $env:GITHUB_WORKSPACE -Recurse -Depth 3 | Select-Object FullName
-        Write-Output "Project files found (after potential modification):"
-        
-        $baseWorkspacePathForDebug = $env:GITHUB_WORKSPACE
-        if ([string]::IsNullOrWhiteSpace($baseWorkspacePathForDebug)) { $baseWorkspacePathForDebug = "${{ github.workspace }}" }
-
-        $projectRootsForDebug = @(
-            (Join-Path $baseWorkspacePathForDebug "CSVGenerator"),
-            (Join-Path $baseWorkspacePathForDebug "Common")
-        )
-        foreach ($rootPath in $projectRootsForDebug) {
-            if (Test-Path $rootPath) {
-                Get-ChildItem -Path $rootPath -Include *.csproj -Recurse | ForEach-Object {
-                    Write-Output "--- Content of $($_.FullName) (first 25 lines) ---"
-                    Get-Content $_.FullName | Select-Object -First 25
-                    Write-Output "------------------------------------"
-                }
-            } else {
-                 Write-Warning "Debug: Path $rootPath not found."
-            }
-        }
       
     - name: Build Common library for net48
       run: dotnet build (Join-Path $env:GITHUB_WORKSPACE "Common" "Common.csproj") -c Release -f net48
 
-    - name: Build and Publish CSVGenerator for net48
+    - name: Publish CSVGenerator for net48
+      id: publish-csvgenerator 
       run: |
+        $publishDir = Join-Path $env:GITHUB_WORKSPACE "publish_output" "net48_win-x64"
         dotnet publish (Join-Path $env:GITHUB_WORKSPACE "CSVGenerator" "CSVGenerator.csproj") `
           -r win-x64 `
           -f net48 `
           -c Release `
-          -o (Join-Path $env:GITHUB_WORKSPACE "publish_output" "net48_win-x64")
+          -o $publishDir
+        Write-Output "CSVGenerator published to $publishDir"
+        echo "publish_dir=$publishDir" >> $env:GITHUB_OUTPUT
+        
+    - name: Prepare Release Assets and Metadata
+      id: release-prep 
+      run: |
+        $publishDir = "${{ steps.publish-csvgenerator.outputs.publish_dir }}"
+        Write-Output "Publish directory for asset prep: $publishDir"
+
+        $stagingDir = Join-Path $env:GITHUB_WORKSPACE "release_staging"
+        New-Item -ItemType Directory -Path $stagingDir -Force
+        
+        $exeFile = Get-ChildItem -Path $publishDir -Filter CSVGenerator.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+        
+        if ($exeFile) {
+          Write-Output "Found executable: $($exeFile.FullName)"
+          Copy-Item -Path $exeFile.FullName -Destination $stagingDir -Force
+          $stagedExePath = Join-Path $stagingDir $exeFile.Name
+
+          $versionInfo = (Get-Item $stagedExePath).VersionInfo
+          $fileVersion = $versionInfo.FileVersion
+          if ([string]::IsNullOrWhiteSpace($fileVersion)) {
+            Write-Warning "File version is empty, using '0.0.0.1' as fallback for test release." # Changed fallback
+            $fileVersion = "0.0.0.1" 
+          }
+          $productVersion = $versionInfo.ProductVersion
+          
+          $sha256 = Get-FileHash -Path $stagedExePath -Algorithm SHA256 | Select-Object -ExpandProperty Hash
+          $buildTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss UTC"
+          
+          Push-Location (Join-Path $env:GITHUB_WORKSPACE "CSVGenerator") # Context for git commands
+          $commitHash = git rev-parse HEAD
+          $commitMessage = (git log -1 --pretty=%B).Trim()
+          $latestTagName = $(git describe --tags --abbrev=0 2>$null)
+          Pop-Location
+
+          $metadataContent = "Product: CSVGenerator" + [Environment]::NewLine
+          $metadataContent += "File: $($exeFile.Name)" + [Environment]::NewLine
+          $metadataContent += "Version: $fileVersion" + [Environment]::NewLine
+          $metadataContent += "ProductVersion: $productVersion" + [Environment]::NewLine
+          $metadataContent += "Build Time: $buildTime" + [Environment]::NewLine
+          $metadataContent += "Commit: $commitHash" + [Environment]::NewLine
+          $metadataContent += "Commit Message: $commitMessage" + [Environment]::NewLine
+          $metadataContent += "SHA256: $sha256"
+          Set-Content -Path (Join-Path $stagingDir "$($exeFile.Name).metadata.txt") -Value $metadataContent
+          
+          $releaseNotesBody = "- Built from commit: $commitHash" + [Environment]::NewLine
+          $releaseNotesBody += "- Commit message: $commitMessage"
+
+          if ($latestTagName) {
+            Push-Location (Join-Path $env:GITHUB_WORKSPACE "CSVGenerator")
+            # Get commits in a clean, one-line-per-commit format
+            $commitsSinceLastTag = git log "${latestTagName}..HEAD" --pretty=format:"- %s (%h)" --reverse | Where-Object { $_.Trim() }
+            if ($commitsSinceLastTag) {
+                $releaseNotesBody = "Changes since $latestTagName:" + [Environment]::NewLine + ($commitsSinceLastTag -join [Environment]::NewLine)
+            }
+            Pop-Location
+          }
+
+          $releaseNotes = "# CSVGenerator v$fileVersion (Test Build)" + [Environment]::NewLine # Clarify it's a test build
+          $releaseNotes += "Build Date: $buildTime" + [Environment]::NewLine
+          $releaseNotes += "SHA256: $sha256 ($($exeFile.Name))" + [Environment]::NewLine
+          $releaseNotes += [Environment]::NewLine
+          $releaseNotes += "## Changes" + [Environment]::NewLine
+          $releaseNotes += $releaseNotesBody
+          
+          Set-Content -Path (Join-Path $stagingDir "release-notes.md") -Value $releaseNotes
+          
+          echo "version=$fileVersion" >> $env:GITHUB_OUTPUT
+          echo "release_notes_path=$(Join-Path $stagingDir "release-notes.md")" >> $env:GITHUB_OUTPUT
+          echo "assets_path=$stagingDir" >> $env:GITHUB_OUTPUT
+          
+          Write-Output "Release version: $fileVersion"
+          Write-Output "Staging directory for release assets: $stagingDir"
+        } else {
+          Write-Error "Main executable (CSVGenerator.exe) not found in $publishDir!"
+          exit 1
+        }
       
-    - name: Upload artifacts
+    - name: Upload Build Artifact (for debugging/retention)
+      if: always() # Upload even if subsequent release fails
       uses: actions/upload-artifact@v4
       with:
-        name: CSVGenerator-net48-win-x64
-        path: ${{ github.workspace }}/publish_output/net48_win-x64/ # Corrected path
-        if-no-files-found: error
+        name: CSVGenerator-Build-Test-${{ steps.release-prep.outputs.version || github.run_number }}
+        path: ${{ steps.publish-csvgenerator.outputs.publish_dir }}/ 
+        if-no-files-found: warn # Warn if no files, as publish might have failed earlier
+        retention-days: 7
+        
+    - name: Create GitHub Release on 'test' branch
+      if: github.event_name == 'push' && github.ref == 'refs/heads/test' 
+      uses: softprops/action-gh-release@v2
+      with:
+        name: Test Release - CSVGenerator v${{ steps.release-prep.outputs.version }}
+        tag_name: test-v${{ steps.release-prep.outputs.version }}-${{ github.run_id }} # Unique tag using run_id
+        body_path: ${{ steps.release-prep.outputs.release_notes_path }}
+        files: |
+          ${{ steps.release-prep.outputs.assets_path }}/CSVGenerator.exe
+          ${{ steps.release-prep.outputs.assets_path }}/CSVGenerator.exe.metadata.txt
+        draft: false
+        prerelease: true 
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: List directory structure (Post-Build Debugging)
+      if: ${{ always() }} # Run even if previous steps fail
+      run: |
+        Write-Output "GITHUB_WORKSPACE (from github context): ${{ github.workspace }}"
+        Write-Output "GITHUB_WORKSPACE (from env context): $env:GITHUB_WORKSPACE"
+        Write-Output "Workspace root structure (using $env:GITHUB_WORKSPACE):"
+        Get-ChildItem -Path $env:GITHUB_WORKSPACE -Recurse -Depth 4 | Select-Object FullName, Length, LastWriteTime
+        Write-Output "Contents of publish_output directory:"
+        Get-ChildItem -Path (Join-Path $env:GITHUB_WORKSPACE "publish_output" "net48_win-x64") -Recurse | Select-Object FullName, Length, LastWriteTime
+        Write-Output "Contents of release_staging directory:"
+        Get-ChildItem -Path (Join-Path $env:GITHUB_WORKSPACE "release_staging") -Recurse | Select-Object FullName, Length, LastWriteTime
