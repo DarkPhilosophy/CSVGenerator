@@ -186,6 +186,9 @@ jobs:
                 } catch { Write-Error "ERROR: Failed during git operations. Error: $($_.Exception.Message)" }
                 finally { Pop-Location; Write-Output "INFO: Popped location from git repo path." }
 
+                if ([string]::IsNullOrWhiteSpace($commitHash)) { $commitHash = "N/A" }
+                if ([string]::IsNullOrWhiteSpace($rawCommitMessage)) { $rawCommitMessage = "No commit message found." }
+
                 # Prepare raw commit message for multi-line display in Markdown
                 $formattedCommitMessage = ($rawCommitMessage -split '(\r?\n)' | ForEach-Object {
                     if ($_ -match '\S') { # If the line has non-whitespace content
@@ -210,9 +213,12 @@ jobs:
                 Set-Content -Path $metadataFilePath -Value $metadataContent
                 Write-Output "INFO: Metadata written."
                 
-                # Default release notes body (for single commit case)
-                $defaultReleaseNotesBody = "- **Commit:** `$commitHash`" + [Environment]::NewLine
-                $defaultReleaseNotesBody += "- **Message:**" + [Environment]::NewLine # Header for message
+                # Construct default release notes body (for single commit case)
+                $line1Default = "- **Commit:** `${commitHash}`" # Using ${} for clarity with backticks
+                $line2Default = "- **Message:**"
+                
+                $defaultReleaseNotesBody = $line1Default + [Environment]::NewLine + $line2Default + [Environment]::NewLine
+                
                 $commitMessageBlock = ($formattedCommitMessage -split "`n" | ForEach-Object {
                     if ($_.Trim().Length -gt 0) { "  > " + $_.TrimEnd(" ") } # Trim our added spaces from the end
                     else { "" } # Skip fully blank lines from the source for the blockquote
