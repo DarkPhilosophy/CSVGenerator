@@ -29,6 +29,7 @@ jobs:
         repository: DarkPhilosophy/Common
         path: Common
         ref: test
+        # token: ${{ secrets.GITHUB_TOKEN }} 
 
     - name: Setup .NET SDK
       uses: actions/setup-dotnet@v4
@@ -42,54 +43,67 @@ jobs:
           Write-Error "Choco install failed for netfx-4.8-devpack"
           exit 1
         }
-
     - name: Temporarily update TargetFrameworks in project files for CI
       env:
         CI_WORKSPACE: ${{ github.workspace }} 
       run: |
-        # (TFM update script - assumed to be the last working version)
+        # This is the full script that was working to update TFMs
         Write-Output "Script starting. Value of CI_WORKSPACE from step env: '$($env:CI_WORKSPACE)'"
         Write-Output "Script starting. Value of GITHUB_WORKSPACE from direct env access: '$($env:GITHUB_WORKSPACE)'"
         $baseWorkspacePath = $env:GITHUB_WORKSPACE
         if ([string]::IsNullOrWhiteSpace($baseWorkspacePath)) {
+            Write-Warning "Direct $env:GITHUB_WORKSPACE was empty or null, trying $env:CI_WORKSPACE from step env."
             $baseWorkspacePath = $env:CI_WORKSPACE
         }
         if ([string]::IsNullOrWhiteSpace($baseWorkspacePath)) {
             Write-Error "Base workspace path is empty or null. Aborting."
             exit 1
         }
+        Write-Output "Using base workspace path: '$baseWorkspacePath'"
         $csvGeneratorCheckoutPath = Join-Path $baseWorkspacePath "CSVGenerator" 
         $commonCheckoutPath = Join-Path $baseWorkspacePath "Common"          
+        Write-Output "Calculated csvGeneratorCheckoutPath: '$csvGeneratorCheckoutPath'"
+        Write-Output "Calculated commonCheckoutPath: '$commonCheckoutPath'"
         $projectRoots = @( $csvGeneratorCheckoutPath, $commonCheckoutPath )
         $tfmToReplace = 'net10.0-windows'; $tfmReplacement = 'net9.0-windows'
         $escapedTfmToReplace = [regex]::Escape($tfmToReplace)
+        Write-Output "Project roots to scan: $($projectRoots -join ', ')"
+        Write-Output "Searching for TargetFramework '$tfmToReplace' to replace with '$tfmReplacement'."
         foreach ($rootPath in $projectRoots) {
             if (Test-Path $rootPath) {
+                Write-Output "Scanning directory: $rootPath"
                 Get-ChildItem -Path $rootPath -Include *.csproj -Recurse | ForEach-Object {
-                    $projectFile = $_.FullName; 
+                    $projectFile = $_.FullName; Write-Output "Processing project file: $projectFile"
                     $content = Get-Content $projectFile -Raw; $originalContent = $content; $wasModified = $false
                     if ($content.Contains($tfmToReplace)) {
+                        Write-Output "Attempting simple string replace of '$tfmToReplace' in $projectFile"
                         $content = $content.Replace($tfmToReplace, $tfmReplacement)
-                        if ($content -ne $originalContent) { $wasModified = $true }
+                        if ($content -ne $originalContent) { Write-Output "Simple string replace successful."; $wasModified = $true }
+                        else { Write-Output "Simple string replace did not alter content."}
                     }
-                    if (-not $wasModified -and $content.Contains($tfmToReplace)) { 
+                    if (-not $wasModified -and $content.Contains($tfmToReplace)) {
+                        Write-Output "Simple replace failed/TFM still present. Trying regex."
                         $regexPatternForTargetFrameworks = "([<TargetFrameworks>].*?;?)\s*$($escapedTfmToReplace)\s*(;?.*?<\TargetFrameworks>)"
                         if ($content -match "<TargetFrameworks>.*$($escapedTfmToReplace).*</TargetFrameworks>") {
                             $tempContent = $content -replace $regexPatternForTargetFrameworks, ('$1' + $tfmReplacement + '$3')
-                            if ($tempContent -ne $content) { $content = $tempContent; $wasModified = $true;}
+                            if ($tempContent -ne $content) { $content = $tempContent; $wasModified = $true; Write-Output "Regex <TargetFrameworks> replace successful."}
+                            else { Write-Output "Regex <TargetFrameworks> did not alter."}
                         }
                         if (-not $wasModified -and $content -match "<TargetFramework>$($escapedTfmToReplace)</TargetFramework>") {
                              $regexPatternForTargetFramework = "<TargetFramework>$($escapedTfmToReplace)</TargetFramework>"
                              $replacementForTf = "<TargetFramework>$($tfmReplacement)</TargetFramework>"
                              $tempContent = $content -replace $regexPatternForTargetFramework, $replacementForTf
-                             if ($tempContent -ne $content) { $content = $tempContent; $wasModified = $true;}
+                             if ($tempContent -ne $content) { $content = $tempContent; $wasModified = $true; Write-Output "Regex <TargetFramework> replace successful."}
+                             else { Write-Output "Regex <TargetFramework> did not alter."}
                         }
                     }
-                    if ($wasModified) { Set-Content -Path $projectFile -Value $content -Force -Encoding UTF8; Write-Output "Updated $projectFile."}
+                    if ($wasModified) { Set-Content -Path $projectFile -Value $content -Force -Encoding UTF8; Write-Output "Successfully saved $projectFile."}
+                    else { Write-Output "No changes made to $projectFile."}
                 }
-            }
+            } else { Write-Warning "Path $rootPath does not exist."}
         }
-
+      shell: pwsh
+      
     - name: Cache NuGet packages
       uses: actions/cache@v4
       with:
@@ -115,45 +129,146 @@ jobs:
         Write-Output "CSVGenerator published to $publishDir"
         echo "publish_dir=$publishDir" >> $env:GITHUB_OUTPUT
         
-    - name: Prepare Release Assets and Metadata (Minimal Parser Test)
+    - name: Prepare Release Assets and Metadata
       id: release-prep 
       run: |
-        $ErrorActionPreference = "Stop"
-        Write-Output "--- Starting Minimal Parser Test Script ---"
+        # Set error action preference to stop on cmdlet errors
+        $ErrorActionPreference = "Stop" 
+        try {
+            $publishDir = "${{ steps.publish-csvgenerator.outputs.publish_dir }}"
+            Write-Output "INFO: Publish directory for asset prep: $publishDir"
+            $stagingDir = Join-Path $env:GITHUB_WORKSPACE "release_staging"
+            Write-Output "INFO: Attempting to create staging directory: $stagingDir"
+            New-Item -ItemType Directory -Path $stagingDir -Force
+            Write-Output "INFO: Staging directory ensured: $stagingDir"
+            
+            $exeFile = Get-ChildItem -Path $publishDir -Filter CSVGenerator.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+            
+            if ($exeFile) {
+                Write-Output "INFO: Found executable: $($exeFile.FullName)"
+                Copy-Item -Path $exeFile.FullName -Destination $stagingDir -Force
+                $stagedExePath = Join-Path $stagingDir $exeFile.Name
+                Write-Output "INFO: Copied EXE to staging path: $stagedExePath"
+                Write-Output "INFO: Getting version info..."
+                $versionInfo = (Get-Item $stagedExePath).VersionInfo
+                $fileVersion = $versionInfo.FileVersion
+                if ([string]::IsNullOrWhiteSpace($fileVersion)) {
+                    Write-Warning "WARN: File version from EXE is empty, using '0.0.0.1' as fallback."
+                    $fileVersion = "0.0.0.1" 
+                }
+                $productVersion = $versionInfo.ProductVersion
+                Write-Output "INFO: FileVersion: $fileVersion, ProductVersion: $productVersion"
+                
+                Write-Output "INFO: Calculating SHA256 hash..."
+                $sha256 = Get-FileHash -Path $stagedExePath -Algorithm SHA256 | Select-Object -ExpandProperty Hash
+                Write-Output "INFO: SHA256: $sha256"
+                $buildTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss UTC"
+                Write-Output "INFO: BuildTime: $buildTime"
+                
+                $gitRepoPath = Join-Path $env:GITHUB_WORKSPACE "CSVGenerator"
+                Write-Output "INFO: Attempting git operations in: $gitRepoPath"
+                if (-not (Test-Path (Join-Path $gitRepoPath ".git"))) {
+                    Write-Error "ERROR: Not a git repository at $gitRepoPath or .git folder not found."
+                    exit 1 
+                }
+                
+                Push-Location $gitRepoPath
+                try {
+                    Write-Output "INFO: Getting commit hash..."
+                    $commitHash = git rev-parse HEAD
+                    Write-Output "INFO: CommitHash: $commitHash"
+                    Write-Output "INFO: Getting commit message..."
+                    $commitMessage = (git log -1 --pretty=%B).Trim()
+                    Write-Output "INFO: CommitMessage: $commitMessage"
+                    Write-Output "INFO: Getting latest tag name (errors suppressed)..."
+                    $latestTagName = $(git describe --tags --abbrev=0 2>$null)
+                    if ([string]::IsNullOrWhiteSpace($latestTagName)) {
+                        Write-Warning "WARN: No git tags found."
+                        $latestTagName = $null 
+                    } else {
+                        Write-Output "INFO: LatestTagName: $latestTagName"
+                    }
+                }
+                catch {
+                    Write-Error "ERROR: Failed during git operations. Error: $($_.Exception.Message)"
+                }
+                finally {
+                    Pop-Location
+                    Write-Output "INFO: Popped location from git repo path."
+                }
+                Write-Output "INFO: Creating metadata content..."
+                $metadataContent = "Product: CSVGenerator" + [Environment]::NewLine
+                $metadataContent += "File: $($exeFile.Name)" + [Environment]::NewLine
+                $metadataContent += "Version: $fileVersion" + [Environment]::NewLine
+                $metadataContent += "ProductVersion: $productVersion" + [Environment]::NewLine
+                $metadataContent += "Build Time: $buildTime" + [Environment]::NewLine
+                $metadataContent += "Commit: $commitHash" + [Environment]::NewLine 
+                $metadataContent += "Commit Message: $commitMessage" + [Environment]::NewLine 
+                $metadataContent += "SHA256: $sha256"
+                $metadataFilePath = Join-Path $stagingDir "$($exeFile.Name).metadata.txt"
+                Write-Output "INFO: Writing metadata to: $metadataFilePath"
+                Set-Content -Path $metadataFilePath -Value $metadataContent
+                Write-Output "INFO: Metadata written."
+                
+                $releaseNotesBody = "- Built from commit: $commitHash" + [Environment]::NewLine
+                $releaseNotesBody += "- Commit message: $commitMessage"
+                if ($latestTagName) { 
+                    Write-Output "INFO: Getting commits since last tag ($latestTagName)..."
+                    Push-Location $gitRepoPath
+                    try {
+                        $commitsSinceLastTag = git log "${latestTagName}..HEAD" --pretty=format:"- %s (%h)" --reverse | Out-String -Stream | Where-Object { $_.Trim() }
+                        if ($commitsSinceLastTag) {
+                            Write-Output "INFO: Found commits since last tag."
+                            $releaseNotesBody = "Changes since ${latestTagName}:" + [Environment]::NewLine + (@($commitsSinceLastTag) -join [Environment]::NewLine)
 
-        # Test variable for hash
-        $commitHashForTest = "somehash123" 
-        Write-Output "DEBUG: commitHashForTest = $commitHashForTest"
-
-        # Line that often seemed to be just before parser errors manifested for subsequent lines
-        $_test_line1 = "- **Commit:** `$($commitHashForTest)`" # Keeping $() for robustness
-        Write-Output "DEBUG: _test_line1 = $_test_line1"
-
-        # The line that has been consistently failing with parser errors
-        $_test_line2 = "- **Message:**" 
-        Write-Output "DEBUG: _test_line2 = $_test_line2"
-
-        Write-Output "Minimal Parser Test Script finished successfully."
-
-        # Dummy outputs so subsequent steps don't fail immediately
-        $fileVersion = "minimal-parser-test"
-        $stagingDir = Join-Path $env:GITHUB_WORKSPACE "release_staging_minimal_parser"
-        New-Item -ItemType Directory -Path $stagingDir -Force
-        $relativeStagingDir = "release_staging_minimal_parser"
-        $releaseNotesFilePath = Join-Path $stagingDir "release-notes.md"
-        Set-Content -Path $releaseNotesFilePath -Value "Test content for release notes." -Force
-        
-        # Create dummy assets for the release action if needed
-        $dummyExePath = Join-Path $stagingDir "CSVGenerator.exe"
-        Set-Content -Path $dummyExePath -Value "dummy exe content" -Force
-        $dummyMetadataPath = Join-Path $stagingDir "CSVGenerator.exe.metadata.txt"
-        Set-Content -Path $dummyMetadataPath -Value "dummy metadata content" -Force
-
-        echo "version=$fileVersion" >> $env:GITHUB_OUTPUT
-        echo "release_notes_path=$(Join-Path $relativeStagingDir "release-notes.md")" >> $env:GITHUB_OUTPUT
-        echo "assets_path=$relativeStagingDir" >> $env:GITHUB_OUTPUT
-
-        exit 0
+                        } else {
+                            Write-Output "INFO: No new commits found since last tag $latestTagName."
+                        }
+                    }
+                    catch {
+                         Write-Error "ERROR: Failed getting commits since last tag. Error: $($_.Exception.Message)"
+                    }
+                    finally {
+                        Pop-Location
+                    }
+                }
+                Write-Output "INFO: Creating release notes content..."
+                $releaseNotes = "# CSVGenerator v$fileVersion (Test Build)" + [Environment]::NewLine
+                $releaseNotes += "Build Date: $buildTime" + [Environment]::NewLine
+                $releaseNotes += "SHA256: $sha256 ($($exeFile.Name))" + [Environment]::NewLine
+                $releaseNotes += [Environment]::NewLine
+                $releaseNotes += "## Changes" + [Environment]::NewLine
+                $releaseNotes += $releaseNotesBody
+                $releaseNotesFilePath = Join-Path $stagingDir "release-notes.md"
+                Write-Output "INFO: Writing release notes to: $releaseNotesFilePath"
+                Set-Content -Path $releaseNotesFilePath -Value $releaseNotes
+                Write-Output "INFO: Release notes written."
+                
+                Write-Output "INFO: Setting GitHub Action outputs..."
+                $outputVersion = "version=$fileVersion"
+                $outputReleaseNotesPath = "release_notes_path=$releaseNotesFilePath"
+                $outputAssetsPath = "assets_path=$stagingDir"
+                Write-Output "INFO: Output to GITHUB_OUTPUT: $outputVersion"
+                echo $outputVersion >> $env:GITHUB_OUTPUT
+                Write-Output "INFO: Output to GITHUB_OUTPUT: $outputReleaseNotesPath"
+                echo $outputReleaseNotesPath >> $env:GITHUB_OUTPUT
+                Write-Output "INFO: Output to GITHUB_OUTPUT: $outputAssetsPath"
+                echo $outputAssetsPath >> $env:GITHUB_OUTPUT
+                
+                Write-Output "INFO: Release version (output check): $fileVersion"
+                Write-Output "INFO: Staging directory for release assets (output check): $stagingDir"
+                Write-Output "INFO: Script logic completed successfully. Attempting explicit exit 0."
+                exit 0 # Explicitly exit with success code
+            } else {
+                Write-Error "FATAL_ERROR: Main executable (CSVGenerator.exe) not found in $publishDir!"
+                exit 1 
+            }
+        }
+        catch {
+            Write-Error "FATAL_ERROR in 'Prepare Release Assets and Metadata' step. Error: $($_.Exception.ToString())" 
+            Write-Error "Failed at line: $($_.InvocationInfo.ScriptLineNumber)"
+            exit 1 
+        }
       shell: pwsh
       
     - name: Upload Build Artifact (for debugging/retention)
@@ -161,7 +276,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: CSVGenerator-Build-Test-${{ steps.release-prep.outputs.version || github.run_number }}
-        path: ${{ steps.publish-csvgenerator.outputs.publish_dir }}/ # This path might not exist if publish step fails
+        path: ${{ steps.publish-csvgenerator.outputs.publish_dir }}/ 
         if-no-files-found: warn 
         retention-days: 7
         
@@ -180,4 +295,14 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    # No final debug step
+    - name: List directory structure (Post-Build Debugging)
+      if: ${{ always() }} 
+      run: |
+        Write-Output "GITHUB_WORKSPACE (from github context): ${{ github.workspace }}"
+        Write-Output "GITHUB_WORKSPACE (from env context): $env:GITHUB_WORKSPACE"
+        Write-Output "Workspace root structure (using $env:GITHUB_WORKSPACE):"
+        Get-ChildItem -Path $env:GITHUB_WORKSPACE -Recurse -Depth 4 | Select-Object FullName, Length, LastWriteTime
+        Write-Output "Contents of publish_output directory:"
+        Get-ChildItem -Path (Join-Path $env:GITHUB_WORKSPACE "publish_output" "net48_win-x64") -Recurse -ErrorAction SilentlyContinue | Select-Object FullName, Length, LastWriteTime
+        Write-Output "Contents of release_staging directory:"
+        Get-ChildItem -Path (Join-Path $env:GITHUB_WORKSPACE "release_staging") -Recurse -ErrorAction SilentlyContinue | Select-Object FullName, Length, LastWriteTime
