@@ -47,13 +47,60 @@ jobs:
       env:
         CI_WORKSPACE: ${{ github.workspace }} 
       run: |
-        # Script that replaces TFM from net10.0-windows to net9.0-windows in .csproj files
-        # Includes regex-based and string replace logic
-        # Uses $CI_WORKSPACE or $GITHUB_WORKSPACE for repo root detection
-        # Processes both CSVGenerator and Common projects
-        # Logs path detection, project scanning, TFM replacements, and success/failure states
-        # (Content not shortened for accuracy, same as your provided script)
-      shell: pwsh
+        Write-Output "Script starting. Value of CI_WORKSPACE from step env: '$($env:CI_WORKSPACE)'"
+        Write-Output "Script starting. Value of GITHUB_WORKSPACE from direct env access: '$($env:GITHUB_WORKSPACE)'"
+        $baseWorkspacePath = $env:GITHUB_WORKSPACE
+        if ([string]::IsNullOrWhiteSpace($baseWorkspacePath)) {
+            Write-Warning "Direct $env:GITHUB_WORKSPACE was empty or null, trying $env:CI_WORKSPACE from step env."
+            $baseWorkspacePath = $env:CI_WORKSPACE
+        }
+        if ([string]::IsNullOrWhiteSpace($baseWorkspacePath)) {
+            Write-Error "Base workspace path is empty or null. Aborting."
+            exit 1
+        }
+        Write-Output "Using base workspace path: '$baseWorkspacePath'"
+        $csvGeneratorCheckoutPath = Join-Path $baseWorkspacePath "CSVGenerator" 
+        $commonCheckoutPath = Join-Path $baseWorkspacePath "Common"          
+        Write-Output "Calculated csvGeneratorCheckoutPath: '$csvGeneratorCheckoutPath'"
+        Write-Output "Calculated commonCheckoutPath: '$commonCheckoutPath'"
+        $projectRoots = @( $csvGeneratorCheckoutPath, $commonCheckoutPath )
+        $tfmToReplace = 'net10.0-windows'; $tfmReplacement = 'net9.0-windows'
+        $escapedTfmToReplace = [regex]::Escape($tfmToReplace)
+        Write-Output "Project roots to scan: $($projectRoots -join ', ')"
+        Write-Output "Searching for TargetFramework '$tfmToReplace' to replace with '$tfmReplacement'."
+        foreach ($rootPath in $projectRoots) {
+            if (Test-Path $rootPath) {
+                Write-Output "Scanning directory: $rootPath"
+                Get-ChildItem -Path $rootPath -Include *.csproj -Recurse | ForEach-Object {
+                    $projectFile = $_.FullName; Write-Output "Processing project file: $projectFile"
+                    $content = Get-Content $projectFile -Raw; $originalContent = $content; $wasModified = $false
+                    if ($content.Contains($tfmToReplace)) {
+                        Write-Output "Attempting simple string replace of '$tfmToReplace' in $projectFile"
+                        $content = $content.Replace($tfmToReplace, $tfmReplacement)
+                        if ($content -ne $originalContent) { Write-Output "Simple string replace successful."; $wasModified = $true }
+                        else { Write-Output "Simple string replace did not alter content."}
+                    }
+                    if (-not $wasModified -and $content.Contains($tfmToReplace)) {
+                        Write-Output "Simple replace failed/TFM still present. Trying regex."
+                        $regexPatternForTargetFrameworks = "([<TargetFrameworks>].*?;?)\s*$($escapedTfmToReplace)\s*(;?.*?<\TargetFrameworks>)"
+                        if ($content -match "<TargetFrameworks>.*$($escapedTfmToReplace).*</TargetFrameworks>") {
+                            $tempContent = $content -replace $regexPatternForTargetFrameworks, ('$1' + $tfmReplacement + '$3')
+                            if ($tempContent -ne $content) { $content = $tempContent; $wasModified = $true; Write-Output "Regex <TargetFrameworks> replace successful."}
+                            else { Write-Output "Regex <TargetFrameworks> did not alter."}
+                        }
+                        if (-not $wasModified -and $content -match "<TargetFramework>$($escapedTfmToReplace)</TargetFramework>") {
+                             $regexPatternForTargetFramework = "<TargetFramework>$($escapedTfmToReplace)</TargetFramework>"
+                             $replacementForTf = "<TargetFramework>$($tfmReplacement)</TargetFramework>"
+                             $tempContent = $content -replace $regexPatternForTargetFramework, $replacementForTf
+                             if ($tempContent -ne $content) { $content = $tempContent; $wasModified = $true; Write-Output "Regex <TargetFramework> replace successful."}
+                             else { Write-Output "Regex <TargetFramework> did not alter."}
+                        }
+                    }
+                    if ($wasModified) { Set-Content -Path $projectFile -Value $content -Force -Encoding UTF8; Write-Output "Successfully saved $projectFile."}
+                    else { Write-Output "No changes made to $projectFile."}
+                }
+            } else { Write-Warning "Path $rootPath does not exist."}
+        }
 
     - name: Cache NuGet packages
       uses: actions/cache@v4
@@ -82,9 +129,23 @@ jobs:
     - name: Prepare Release Assets and Metadata
       id: release-prep 
       run: |
-        # Complete logic to collect build info, git info, create metadata file and release notes
-        # Writes version, asset paths, and release notes to GITHUB_OUTPUT for next steps
-        # Updated logic to use list of commit messages since last tag in release notes body
+        $releaseDir = Join-Path $env:GITHUB_WORKSPACE "release_staging"
+        New-Item -ItemType Directory -Path $releaseDir -Force | Out-Null
+
+        $exePath = Join-Path $env:GITHUB_WORKSPACE "publish_output" "net48_win-x64" "CSVGenerator.exe"
+        Copy-Item $exePath -Destination (Join-Path $releaseDir "CSVGenerator.exe") -Force
+
+        $version = Get-Date -Format "yyyy.MM.dd.HHmm"
+        $metadataPath = Join-Path $releaseDir "CSVGenerator.exe.metadata.txt"
+        "Build Timestamp: $(Get-Date -Format 'u')" | Out-File -FilePath $metadataPath -Encoding utf8
+
+        $commitMessages = git log -n 20 --pretty=format:"- %s" --no-merges
+        $releaseNotesPath = Join-Path $releaseDir "release_notes.md"
+        "### Recent Changes`n$commitMessages" | Out-File -FilePath $releaseNotesPath -Encoding utf8
+
+        echo "version=$version" >> $env:GITHUB_OUTPUT
+        echo "assets_path=$releaseDir" >> $env:GITHUB_OUTPUT
+        echo "release_notes_path=$releaseNotesPath" >> $env:GITHUB_OUTPUT
       shell: pwsh
 
     - name: Upload Build Artifact (for debugging/retention)
