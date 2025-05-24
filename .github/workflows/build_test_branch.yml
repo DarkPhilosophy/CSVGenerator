@@ -177,7 +177,7 @@ jobs:
         body_path: ${{ steps.release-prep.outputs.release_notes_path }}
         files: |
           ${{ steps.release-prep.outputs.assets_path }}/CSVGenerator.exe
-          ${{ steps release-prep.outputs.assets_path }}/CSVGenerator.exe.metadata.txt
+          ${{ steps.release-prep.outputs.assets_path }}/CSVGenerator.exe.metadata.txt
         draft: false
         prerelease: true
       env:
