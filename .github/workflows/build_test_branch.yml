@@ -135,9 +135,28 @@ jobs:
         Copy-Item $exePath -Destination (Join-Path $releaseDir "CSVGenerator.exe") -Force
 
         $version = Get-Date -Format "yyyy.MM.dd.HHmm"
-        $commitHash = git rev-parse HEAD
-        $commitMessage = git log -1 --pretty=%B
+        $gitDir = "$env:GITHUB_WORKSPACE/CSVGenerator"
+        Write-Output "Using Git directory: $gitDir"
+        if (-not (Test-Path "$gitDir/.git")) {
+          Write-Error "Git repository not found at $gitDir"
+          exit 1
+        }
+        $commitHash = git -C $gitDir rev-parse HEAD
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "Failed to get commit hash"
+          exit 1
+        }
+        Write-Output "Commit hash: $commitHash"
+        $commitMessage = git -C $gitDir log -1 --pretty=%B
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "Failed to get commit message"
+          exit 1
+        }
         Write-Output "Raw commit message: '$commitMessage'"
+        if ([string]::IsNullOrWhiteSpace($commitMessage)) {
+          $commitMessage = "(No commit message provided)"
+          Write-Output "Commit message was empty, using fallback: '$commitMessage'"
+        }
 
         $metadataPath = Join-Path $releaseDir "CSVGenerator.exe.metadata.txt"
         $metadataContent = "Build Timestamp: $(Get-Date -Format 'u')`n"
@@ -148,9 +167,12 @@ jobs:
         $releaseNotesPath = Join-Path $releaseDir "release_notes.md"
         $releaseNotes = "Built from commit: $commitHash`n`n"
         $releaseNotes += "Commit message:`n$commitMessage`n`n"
-        Push-Location "$env:GITHUB_WORKSPACE/CSVGenerator"
-        $recentCommits = git log -n 20 --pretty=format:"%h - %s" --no-merges
-        Pop-Location
+        $recentCommits = git -C $gitDir log -n 20 --pretty=format:"%h - %s" --no-merges
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "Failed to get recent commits"
+          exit 1
+        }
+        Write-Output "Recent commits: $recentCommits"
         $releaseNotes += "### Recent Changes`n`n"
         $releaseNotes += ($recentCommits -split "`n" | ForEach-Object { "- $_`n" }) -join ""
         [System.IO.File]::WriteAllText($releaseNotesPath, $releaseNotes, [System.Text.Encoding]::UTF8)
