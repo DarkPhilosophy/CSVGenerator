@@ -138,8 +138,9 @@ jobs:
         $version = Get-Date -Format "yyyy.MM.dd.HHmm"
         $metadataPath = Join-Path $releaseDir "CSVGenerator.exe.metadata.txt"
         "Build Timestamp: $(Get-Date -Format 'u')" | Out-File -FilePath $metadataPath -Encoding utf8
-
+        Push-Location "$env:GITHUB_WORKSPACE/CSVGenerator"
         $commitMessages = git log -n 20 --pretty=format:"- %s" --no-merges
+        Pop-Location
         $releaseNotesPath = Join-Path $releaseDir "release_notes.md"
         "### Recent Changes`n$commitMessages" | Out-File -FilePath $releaseNotesPath -Encoding utf8
 
