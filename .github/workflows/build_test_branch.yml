@@ -154,12 +154,18 @@ jobs:
           Write-Error "Git repository not found at $gitDir"
           exit 1
         }
-        $commitHash = git -C $gitDir rev-parse HEAD
+        $commitHashFull = git -C $gitDir rev-parse HEAD
         if ($LASTEXITCODE -ne 0) {
-          Write-Error "Failed to get commit hash"
+          Write-Error "Failed to get full commit hash"
           exit 1
         }
-        Write-Output "Commit hash: $commitHash"
+        $commitHashShort = git -C $gitDir rev-parse --short=7 HEAD
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "Failed to get short commit hash"
+          exit 1
+        }
+        Write-Output "Full commit hash: $commitHashFull"
+        Write-Output "Short commit hash: $commitHashShort"
         $commitMessage = git -C $gitDir log -1 --pretty=%B
         if ($LASTEXITCODE -ne 0) {
           Write-Error "Failed to get commit message"
@@ -171,9 +177,15 @@ jobs:
           Write-Output "Commit message was empty, using fallback: '$commitMessage'"
         }
 
+        $commitMessageLines = $commitMessage -split "`n"
+        $commitTitle = $commitMessageLines[0]
+        $commitBody = if ($commitMessageLines.Length -gt 1) { $commitMessageLines[1..($commitMessageLines.Length-1)] } else { @() }
+        Write-Output "Commit title: '$commitTitle'"
+        Write-Output "Commit body: '$($commitBody -join ', ')"
+
         $metadataPath = Join-Path $releaseDir "CSVGenerator.exe.metadata.txt"
         $metadataContent = "Build Timestamp: $buildDate`n"
-        $metadataContent += "Commit: $commitHash`n"
+        $metadataContent += "Commit: $commitHashFull`n"
         $metadataContent += "SHA256: $sha256`n"
         $metadataContent += "Version: $version`n"
         $metadataContent += "Commit Message:`n$commitMessage"
@@ -184,9 +196,12 @@ jobs:
         $releaseNotes += "Build Date: $buildDate`n"
         $releaseNotes += "SHA256: $sha256 (CSVGenerator.exe)`n`n"
         $releaseNotes += "Changes`n`n"
-        $releaseNotes += "    Built from commit: $commitHash`n"
+        $releaseNotes += "    Built from commit: [$commitHashShort](https://github.com/DarkPhilosophy/CSVGenerator/commit/$commitHashFull)`n"
         $releaseNotes += "    Commit message:`n"
-        $releaseNotes += ($commitMessage -split "`n" | ForEach-Object { "        $_" }) -join "`n"
+        $releaseNotes += "        #### $commitTitle`n"
+        if ($commitBody) {
+          $releaseNotes += ($commitBody | ForEach-Object { "        - $_" }) -join "`n"
+        }
         [System.IO.File]::WriteAllText($releaseNotesPath, $releaseNotes, [System.Text.Encoding]::UTF8)
 
         echo "version=$version" >> $env:GITHUB_OUTPUT
